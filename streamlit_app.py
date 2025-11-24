@@ -23,7 +23,7 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
-    st.title("🔒 Connexion")
+    st.title("Mehdi BENDAHOU")
     pwd = st.text_input("Mot de passe", type="password")
     if st.button("Valider"):
         if pwd == PASSWORD:
@@ -369,3 +369,4 @@ elif page == "Historique":
                 st.success("Modifications enregistrées ✔")
                 del st.session_state["editing"]
                 st.rerun()  # <-- remplacé experimental_rerun
+
