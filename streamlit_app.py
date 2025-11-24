@@ -80,7 +80,6 @@ def calc_total_from_produits(produits_dict):
     return sum(item["montant"] for item in produits_dict.values())
 
 def create_pdf_bytes(vente):
-    """Return bytes of a PDF for the given vente (uses reportlab if available)."""
     if not REPORTLAB_AVAILABLE:
         return None
     buf = io.BytesIO()
@@ -136,7 +135,6 @@ def create_pdf_bytes(vente):
     return buf.read()
 
 def create_html_bytes(vente):
-    """Fallback: create a simple HTML receipt and return bytes."""
     total = calc_total_from_produits(vente["produits"])
     html = f"""
     <html><head><meta charset="utf-8"><title>Reçu Vente {vente['num']}</title></head>
@@ -197,7 +195,6 @@ if page == "Nouvelle vente":
     st.write(f"Caisse : {caisse}")
 
     if st.button("Enregistrer la vente"):
-        # Validate stock (prevent negative)
         ok = True
         for p, info in vente_produits.items():
             if info["unite"] == "Boîte" and info["qte"] > data["stock"][p]["boites"]:
@@ -207,7 +204,6 @@ if page == "Nouvelle vente":
                 st.error(f"Stock insuffisant pour {p} en fardeaux.")
                 ok = False
         if ok:
-            # Deduct stock
             for p, info in vente_produits.items():
                 if info["unite"] == "Boîte":
                     data["stock"][p]["boites"] -= info["qte"]
@@ -227,7 +223,7 @@ if page == "Nouvelle vente":
             data["ventes"].append(vente)
             save_data()
             st.success("Vente enregistrée ✔")
-            st.experimental_rerun()
+            st.rerun()  # <-- remplacé experimental_rerun
 
 # ---------------------------
 # STOCK PAGE
@@ -247,10 +243,10 @@ elif page == "Stock":
         data["stock"][prod]["fardeaux"] += add_fardeaux
         save_data()
         st.success("Stock mis à jour ✔")
-        st.experimental_rerun()
+        st.rerun()  # <-- remplacé experimental_rerun
 
 # ---------------------------
-# HISTORIQUE PAGE (TABLE + MODIF + SUPPR + EXPORT)
+# HISTORIQUE PAGE
 # ---------------------------
 elif page == "Historique":
     st.title("Historique des ventes")
@@ -286,26 +282,23 @@ elif page == "Historique":
     col_del, col_mod, col_pdf = st.columns([1,1,1])
     with col_del:
         if st.button("❌ Supprimer"):
-            # restore stock
             for prod, info in vente["produits"].items():
                 if info["unite"] == "Boîte":
                     data["stock"][prod]["boites"] += info["qte"]
                 else:
                     data["stock"][prod]["fardeaux"] += info["qte"]
-            # remove vente
             data["ventes"] = [v for v in data["ventes"] if v["num"] != choix]
             save_data()
             st.success("Vente supprimée ✔")
-            st.experimental_rerun()
+            st.rerun()  # <-- remplacé experimental_rerun
 
     with col_mod:
         if st.button("✏ Modifier"):
             st.session_state["editing"] = choix
-            st.experimental_rerun()
+            st.rerun()  # <-- remplacé experimental_rerun
 
     with col_pdf:
         if st.button("📄 Export PDF / HTML"):
-            # create download bytes
             pdf_bytes = create_pdf_bytes(vente) if REPORTLAB_AVAILABLE else None
             if pdf_bytes:
                 st.download_button("Télécharger le PDF", data=pdf_bytes, file_name=f"vente_{vente['num']}.pdf", mime="application/pdf")
@@ -314,22 +307,15 @@ elif page == "Historique":
                 st.download_button("Télécharger le reçu (HTML)", data=html_bytes, file_name=f"vente_{vente['num']}.html", mime="text/html")
             st.success("Préparation terminée — téléchargez votre reçu")
 
-    # ---------------------------
-    # Editing form (complete modification)
-    # ---------------------------
     if "editing" in st.session_state and st.session_state["editing"] == choix:
         st.markdown("## ✍️ Modifier la vente (tous les champs)")
-
-        # First, create a working copy and restore stock from original sale so we can reapply new quantities safely
         original = vente
-        # restore stock temporarily
         for prod, info in original["produits"].items():
             if info["unite"] == "Boîte":
                 data["stock"][prod]["boites"] += info["qte"]
             else:
                 data["stock"][prod]["fardeaux"] += info["qte"]
 
-        # Form fields
         new_client = st.text_input("Client", value=original.get("client",""))
         new_operateur = st.text_input("Opérateur", value=original.get("operateur",""))
         new_chauffeur = st.text_input("Chauffeur", value=original.get("chauffeur",""))
@@ -347,7 +333,6 @@ elif page == "Historique":
             new_produits[prod] = {"unite": new_unite, "qte": new_qte, "prix": new_prix, "montant": new_montant}
             st.write(f"Montant: {new_montant}")
 
-        # Validate stock availability before saving
         if st.button("💾 Enregistrer modifications"):
             ok = True
             for prod, info in new_produits.items():
@@ -358,13 +343,11 @@ elif page == "Historique":
                     st.error(f"Stock insuffisant pour {prod} (fardeaux). Disponible: {data['stock'][prod]['fardeaux']}")
                     ok = False
             if ok:
-                # apply new stock deduction
                 for prod, info in new_produits.items():
                     if info["unite"] == "Boîte":
                         data["stock"][prod]["boites"] -= info["qte"]
                     else:
                         data["stock"][prod]["fardeaux"] -= info["qte"]
-                # update vente record
                 total_new = calc_total_from_produits(new_produits)
                 new_caisse = total_new - new_dettes - new_frais
                 updated = {
@@ -378,7 +361,6 @@ elif page == "Historique":
                     "frais": new_frais,
                     "caisse": new_caisse
                 }
-                # replace in list
                 for i, v in enumerate(data["ventes"]):
                     if v["num"] == original["num"]:
                         data["ventes"][i] = updated
@@ -386,6 +368,4 @@ elif page == "Historique":
                 save_data()
                 st.success("Modifications enregistrées ✔")
                 del st.session_state["editing"]
-                st.experimental_rerun()
-
-# End
+                st.rerun()  # <-- remplacé experimental_rerun
