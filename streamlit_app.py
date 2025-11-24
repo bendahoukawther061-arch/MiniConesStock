@@ -26,20 +26,21 @@ if not st.session_state.authenticated:
 # --- Logo ---
 try:
     logo = Image.open("logo.png")
-    st.image(logo, width=200)
+    st.image(logo, width=200, output_format="PNG")
 except FileNotFoundError:
     st.warning("Logo non trouvé ! Vérifie le nom du fichier et son emplacement.")
 
 # --- Fichier de stockage ---
 DATA_FILE = "stock.json"
 
+# Initialisation si fichier n'existe pas
 if not os.path.exists(DATA_FILE):
     data = {
         "stock": {
-            "Twine Cones": 100,
-            "Au Lait 50g": 200,
-            "Bueno 70g": 150,
-            "Pistachio": 180
+            "Twine Cones": {"boites": 100, "fardeaux": 10},
+            "Au Lait 50g": {"boites": 200, "fardeaux": 15},
+            "Bueno 70g": {"boites": 150, "fardeaux": 20},
+            "Pistachio": {"boites": 180, "fardeaux": 25}
         },
         "ventes": []
     }
@@ -49,99 +50,125 @@ else:
     with open(DATA_FILE, "r") as f:
         data = json.load(f)
 
-# --- Sélection de la page ---
-page = st.sidebar.selectbox("Choisir une page", ["Nouvelle vente", "Historique des ventes", "Gestion du stock"])
+# --- Numéro de vente automatique ---
+num_vente = 1 if len(data["ventes"]) == 0 else data["ventes"][-1]["num"] + 1
 
-if page == "Nouvelle vente":
-    st.title("💰 Nouvelle vente")
+# --- Interface principale ---
+st.title("💰 Gestion Mini Cones")
 
-    # Numéro de vente automatique
-    num_vente = 1 if len(data["ventes"]) == 0 else data["ventes"][-1]["num"] + 1
+today = datetime.today().strftime("%Y-%m-%d")
+st.write(f"**Date :** {today}")
+st.write(f"**Numéro de vente :** {num_vente}")
 
-    # Date et numéro
-    today = datetime.today().strftime("%Y-%m-%d")
-    st.write(f"**Date :** {today}")
-    st.write(f"**Numéro de vente :** {num_vente}")
+# Client et personnel
+client = st.text_input("Nom du client")
+dettes = st.number_input("Dette du client", min_value=0.0, step=1.0)
+operateur = st.text_input("Opérateur")
+chauffeur = st.text_input("Chauffeur")
+frais = st.number_input("Frais du jour", min_value=0.0, step=1.0)
 
-    # Client et personnel
-    client = st.text_input("Nom du client")
-    dettes = st.number_input("Dette du client (montant non payé)", min_value=0.0, step=1.0)
-    operateur = st.text_input("Opérateur")
-    chauffeur = st.text_input("Chauffeur")
-    frais = st.number_input("Frais du jour", min_value=0.0, step=1.0)
+# --- Produits ---
+st.subheader("Produits vendus")
+produits = list(data["stock"].keys())
+vente_produits = {}
+total_ventes = 0
 
-    # Produits
-    st.subheader("Produits vendus")
-    produits = list(data["stock"].keys())
-    vente_produits = {}
-    total_ventes = 0
+for p in produits:
+    st.markdown(f"**{p}**")
+    unite = st.selectbox(f"Unité {p}", ["Boîte", "Fardeau"], key=f"{p}_unite")
+    qte = st.number_input(f"Quantité vendue {p}", min_value=0, step=1, key=f"{p}_qte")
+    prix = st.number_input(f"Prix unitaire {p}", min_value=0.0, step=1.0, key=f"{p}_prix")
+    montant = qte * prix
+    st.write(f"Montant : {montant}")
+    vente_produits[p] = {"unite": unite, "qte": qte, "prix": prix, "montant": montant}
+    total_ventes += montant
 
+# --- Calcul caisse ---
+caisse = total_ventes - dettes - frais
+st.subheader("Résumé du jour")
+st.write(f"Total ventes : {total_ventes}")
+st.write(f"Dettes : {dettes}")
+st.write(f"Frais : {frais}")
+st.write(f"💵 Caisse finale : {caisse}")
+
+# --- Enregistrer la vente ---
+if st.button("Enregistrer la vente"):
+    # Mise à jour du stock
     for p in produits:
-        st.markdown(f"**{p}**")
-        unite = st.selectbox(f"Unité {p}", ["Boîte", "Fardeau"], key=f"{p}_unite")
-        qte = st.number_input(f"Quantité vendue {p}", min_value=0, max_value=data["stock"][p], step=1, key=f"{p}_qte")
-        prix = st.number_input(f"Prix unitaire {p}", min_value=0.0, step=1.0, key=f"{p}_prix")
-        montant = qte * prix
-        st.write(f"Montant : {montant}")
+        if vente_produits[p]["unite"] == "Boîte":
+            data["stock"][p]["boites"] -= vente_produits[p]["qte"]
+        else:
+            data["stock"][p]["fardeaux"] -= vente_produits[p]["qte"]
 
-        vente_produits[p] = {"unite": unite, "qte": qte, "prix": prix, "montant": montant}
-        total_ventes += montant
+    # Enregistrement
+    vente = {
+        "num": num_vente,
+        "date": today,
+        "client": client,
+        "produits": vente_produits,
+        "dettes": dettes,
+        "operateur": operateur,
+        "chauffeur": chauffeur,
+        "frais": frais,
+        "caisse": caisse
+    }
+    data["ventes"].append(vente)
 
-    # Calcul caisse
-    caisse = total_ventes - dettes - frais
-    st.subheader("Résumé du jour")
-    st.write(f"Total ventes : {total_ventes}")
-    st.write(f"Dettes : {dettes}")
-    st.write(f"Frais : {frais}")
-    st.write(f"💵 Caisse finale : {caisse}")
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=4)
 
-    # Enregistrer la vente
-    if st.button("Enregistrer la vente"):
-        for p in produits:
-            data["stock"][p] -= vente_produits[p]["qte"]
+    st.success("Vente enregistrée avec succès !")
+    st.balloons()
 
-        vente = {
-            "num": num_vente,
-            "date": today,
-            "client": client,
-            "produits": vente_produits,
-            "dettes": dettes,
-            "operateur": operateur,
-            "chauffeur": chauffeur,
-            "frais": frais,
-            "caisse": caisse
-        }
-        data["ventes"].append(vente)
+# --- Affichage stock actuel ---
+st.subheader("📦 Stock actuel")
+for p, q in data["stock"].items():
+    st.write(f"{p} : {q['boites']} boîtes, {q['fardeaux']} fardeaux")
 
+# --- Ajouter au stock ---
+st.subheader("Ajouter au stock")
+for p in produits:
+    ajout_boites = st.number_input(f"{p} - Boîtes à ajouter", min_value=0, step=1, key=f"{p}_ajout_boites")
+    ajout_fardeaux = st.number_input(f"{p} - Fardeaux à ajouter", min_value=0, step=1, key=f"{p}_ajout_fardeaux")
+    if st.button(f"Mettre à jour {p}"):
+        data["stock"][p]["boites"] += ajout_boites
+        data["stock"][p]["fardeaux"] += ajout_fardeaux
         with open(DATA_FILE, "w") as f:
             json.dump(data, f, indent=4)
+        st.success(f"Stock de {p} mis à jour !")
 
-        st.success("Vente enregistrée avec succès !")
-        st.balloons()
-
-elif page == "Historique des ventes":
-    st.title("📋 Historique des ventes")
-    if len(data["ventes"]) == 0:
-        st.info("Aucune vente enregistrée.")
-    else:
-        for vente in data["ventes"]:
-            st.subheader(f"Vente #{vente['num']} - {vente['date']}")
-            st.write(f"**Client :** {vente['client']}")
-            st.write(f"**Opérateur :** {vente['operateur']}")
-            st.write(f"**Chauffeur :** {vente['chauffeur']}")
-            st.write(f"**Dettes :** {vente['dettes']}")
-            st.write(f"**Frais :** {vente['frais']}")
-            st.write(f"💵 **Caisse :** {vente['caisse']}")
-            st.write("**Produits vendus :**")
-            st.table({p: info["qte"] for p, info in vente["produits"].items()})
-
-elif page == "Gestion du stock":
-    st.title("📦 Gestion du stock")
-    for p in data["stock"]:
-        qte = st.number_input(f"{p} (actuellement {data['stock'][p]})", value=data["stock"][p], step=1, key=f"stock_{p}")
-        data["stock"][p] = qte
-
-    if st.button("Mettre à jour le stock"):
-        with open(DATA_FILE, "w") as f:
-            json.dump(data, f, indent=4)
-        st.success("Stock mis à jour avec succès !")
+# --- Historique des ventes ---
+st.subheader("📝 Historique des ventes")
+for v in data["ventes"]:
+    st.markdown(f"**Vente {v['num']} - {v['date']} - Client : {v['client']}**")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button(f"Supprimer {v['num']}"):
+            # Retour du stock avant suppression
+            for prod, info in v["produits"].items():
+                if info["unite"] == "Boîte":
+                    data["stock"][prod]["boites"] += info["qte"]
+                else:
+                    data["stock"][prod]["fardeaux"] += info["qte"]
+            data["ventes"] = [x for x in data["ventes"] if x["num"] != v["num"]]
+            with open(DATA_FILE, "w") as f:
+                json.dump(data, f, indent=4)
+            st.experimental_rerun()
+    with col2:
+        if st.button(f"Modifier {v['num']}"):
+            st.session_state.modif_vente = v["num"]
+            for prod, info in v["produits"].items():
+                qte_modif = st.number_input(f"{prod} ({info['unite']})", value=info["qte"], step=1, key=f"mod_{v['num']}_{prod}")
+                info["qte"] = qte_modif
+            if st.button(f"Valider modification {v['num']}"):
+                # Retour du stock initial
+                for prod, info in v["produits"].items():
+                    if info["unite"] == "Boîte":
+                        data["stock"][prod]["boites"] -= info["qte"]
+                    else:
+                        data["stock"][prod]["fardeaux"] -= info["qte"]
+                # Sauvegarde
+                with open(DATA_FILE, "w") as f:
+                    json.dump(data, f, indent=4)
+                st.success(f"Vente {v['num']} modifiée !")
+                st.experimental_rerun()
