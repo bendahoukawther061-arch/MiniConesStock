@@ -13,13 +13,13 @@ from PIL import Image
 st.set_page_config(page_title="Mini Cones", page_icon="🍦")
 
 # Authentification
-PASSWORD = "bendahou mehdi"
+PASSWORD = "mehdi123"
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
-    st.title("🔒 Connexion")
-    pwd = st.text_input("mehdi123", type="password")
+    st.title("Mehdi BENDAHOU")
+    pwd = st.text_input("Mot de passe", type="password")
     if st.button("Valider"):
         if pwd.lower() == PASSWORD:
             st.session_state.authenticated = True
