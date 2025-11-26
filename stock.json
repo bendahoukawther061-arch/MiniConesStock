@@ -1,1 +1,11 @@
-{}
+{
+    "stock": {
+        "Twine Cones": {"boites": 50, "achat": 10, "vente": 15},
+        "Pistache": {"boites": 60, "achat": 12, "vente": 18},
+        "Bueno": {"boites": 70, "achat": 13, "vente": 20},
+        "Au Lait": {"boites": 80, "achat": 11, "vente": 17},
+        "Crêpes": {"boites": 40, "achat": 8, "vente": 12}
+    },
+    "commandes": []
+}
+
