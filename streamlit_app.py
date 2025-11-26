@@ -11,7 +11,7 @@ import base64
 # ---------------------------
 st.set_page_config(page_title="Mini Cones", page_icon="🍦")
 
-PASSWORD = "bendahou mehdi"
+PASSWORD = "mehdi123"
 
 if "auth" not in st.session_state:
     st.session_state.auth = False
@@ -219,3 +219,4 @@ elif page == "Historique":
             b64 = base64.b64encode(pdf_bytes).decode()
 
         st.markdown(f'<a download="{file_path}" href="data:application/pdf;base64,{b64}">📥 Télécharger PDF</a>', unsafe_allow_html=True)
+
