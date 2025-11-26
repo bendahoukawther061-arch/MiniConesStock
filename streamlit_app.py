@@ -246,7 +246,7 @@ page = st.sidebar.selectbox("Menu", ["Nouvelle vente", "Stock", "Historique"])
 # PAGE: Nouvelle vente
 # ---------------------------
 if page == "Nouvelle vente":
-    st.title("🛒 Nouvelle vente (saisir prix achat & vente par produit)")
+    st.title("🛒 Nouvelle vente ")
 
     num_vente = 1 if len(data["ventes"]) == 0 else data["ventes"][-1]["num"] + 1
     today = datetime.today().strftime("%Y-%m-%d")
@@ -496,3 +496,4 @@ if "edit_num" in st.session_state:
         st.error("La vente à modifier n'existe plus.")
         del st.session_state['edit_num']
         st.rerun()
+
