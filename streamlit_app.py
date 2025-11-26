@@ -1,109 +1,192 @@
 import streamlit as st
 import json
 import os
+from datetime import datetime
+import pandas as pd
 
-STOCK_FILE = "stock.json"
+# -------------------------------------------------------
+# CONFIG
+# -------------------------------------------------------
+st.set_page_config(page_title="Mini Cones", page_icon="🍦")
+PASSWORD = "mehdi123"
 
+if "auth" not in st.session_state:
+    st.session_state.auth = False
 
-# ------------------------------
-#     FONCTIONS JSON STOCK
-# ------------------------------
-def load_stock():
-    if not os.path.exists(STOCK_FILE):
-        return {}
-    with open(STOCK_FILE, "r") as f:
-        return json.load(f)
-
-
-def save_stock(stock):
-    with open(STOCK_FILE, "w") as f:
-        json.dump(stock, f, indent=4)
-
-
-# ------------------------------
-#        AUTHENTIFICATION
-# ------------------------------
-def login():
-    st.title("🔐 Connexion")
-
-    user = st.text_input("Nom d'utilisateur")
+if not st.session_state.auth:
+    st.title("BENDAHOU Mehdi")
     pwd = st.text_input("Mot de passe", type="password")
-
-    if st.button("Se connecter"):
-        if user == "admin" and pwd == "mehdi123":
-            st.session_state.authenticated = True
-            st.success("Connecté avec succès !")
+    if st.button("Valider"):
+        if pwd.lower().strip() == PASSWORD:
+            st.session_state.auth = True
+            st.success("Connecté ✔")
         else:
-            st.error("Identifiants incorrects.")
+            st.error("Mot de passe incorrect ❌")
+    st.stop()
 
+# -------------------------------------------------------
+# DATA
+# -------------------------------------------------------
+DATA_FILE = "stock.json"
+DEFAULT_DATA = {
+    "stock": {
+        "Twine Cones": {"boites": 50, "achat": 10, "vente": 15},
+        "Pistache": {"boites": 60, "achat": 12, "vente": 18},
+        "Bueno": {"boites": 70, "achat": 13, "vente": 20},
+        "Au Lait": {"boites": 80, "achat": 11, "vente": 17},
+        "Crêpes": {"boites": 40, "achat": 8, "vente": 12}
+    },
+    "commandes": []
+}
 
-# ------------------------------
-#        PAGE STOCK
-# ------------------------------
-def page_stock():
-    st.title("📦 Gestion du Stock")
+if not os.path.exists(DATA_FILE):
+    with open(DATA_FILE, "w") as f:
+        json.dump(DEFAULT_DATA, f, indent=4)
 
-    stock = load_stock()
+with open(DATA_FILE, "r") as f:
+    data = json.load(f)
 
-    st.subheader("➕ Ajouter un produit")
+def save():
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=4)
 
-    nom = st.text_input("Nom du produit")
-    boites = st.number_input("Nombre de boîtes", min_value=0, step=1)
-    prix_achat = st.number_input("Prix d'achat (DA)", min_value=0.0)
-    prix_vente = st.number_input("Prix de vente (DA)", min_value=0.0)
+# -------------------------------------------------------
+# MENU
+# -------------------------------------------------------
+menu = st.sidebar.selectbox("Menu", ["Commande", "Stock", "Historique"])
 
-    if st.button("Ajouter au stock"):
-        if nom == "":
-            st.error("Veuillez entrer un nom.")
-        else:
-            stock[nom] = {
-                "boites": boites,
-                "prix_achat": prix_achat,
-                "prix_vente": prix_vente
-            }
-            save_stock(stock)
-            st.success("Produit ajouté !")
+# -------------------------------------------------------
+# PAGE 1 : COMMANDE
+# -------------------------------------------------------
+if menu == "Commande":
+    st.title("🧾 Nouvelle commande")
 
-    st.subheader("📋 Stock actuel")
+    num = 1 if len(data["commandes"]) == 0 else data["commandes"][-1]["num"] + 1
+    date = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    if not stock:
-        st.info("Aucun produit dans le stock.")
-        return
+    st.write(f"**N° commande :** {num}")
+    st.write(f"**Date & Heure :** {date}")
 
-    for nom, data in stock.items():
-        marge = data["prix_vente"] - data["prix_achat"]
+    client = st.text_input("Client")
+    revendeur = st.text_input("Revendeur")
+    prix_revendeur = st.number_input("Prix revendeur", min_value=0.0, value=0.0)
+    chauffeur = st.text_input("Chauffeur")
+    prix_chauffeur = st.number_input("Prix chauffeur", min_value=0.0, value=0.0)
+    autres_charges = st.number_input("Autres charges", min_value=0.0, value=0.0)
 
-        st.write(f"""
-        **{nom}**
-        - Boîtes : {data['boites']}
-        - Prix d'achat : {data['prix_achat']} DA
-        - Prix de vente : {data['prix_vente']} DA
-        - 💰 **Marge : {marge} DA**
-        """)
+    total_charges = prix_revendeur + prix_chauffeur + autres_charges
+    st.info(f"Total charges = {total_charges} DA")
 
-        if st.button(f"Supprimer {nom}"):
-            del stock[nom]
-            save_stock(stock)
-            st.warning(f"{nom} supprimé.")
-            st.rerun()
+    st.subheader("Produits vendus")
+    produits_vente = {}
+    total_montant = 0
+    total_marge = 0
 
+    for p, s in data["stock"].items():
+        q = st.number_input(f"Quantité vendue – {p}", min_value=0, max_value=s["boites"], step=1)
+        montant = q * s["vente"]
+        marge = q * (s["vente"] - s["achat"])
 
-# ------------------------------
-#        APPLICATION
-# ------------------------------
-def main():
-    if "authenticated" not in st.session_state:
-        st.session_state.authenticated = False
+        produits_vente[p] = {
+            "qte": q,
+            "prix_achat": s["achat"],
+            "prix_vente": s["vente"],
+            "montant": montant,
+            "marge": marge
+        }
 
-    if not st.session_state.authenticated:
-        login()
-        return
+        total_montant += montant
+        total_marge += marge
 
-    st.sidebar.title("Menu")
-    choix = st.sidebar.selectbox("Navigation", ["Stock"])
+    st.subheader("Résultats")
+    st.write(f"Montant total : **{total_montant} DA**")
+    st.write(f"Marge brute : **{total_marge} DA**")
 
-    if choix == "Stock":
-        page_stock()
+    benefice_net = total_marge - total_charges
+    st.success(f"Bénéfice net : **{benefice_net} DA**")
 
+    if st.button("Enregistrer"):
+        for p, info in produits_vente.items():
+            data["stock"][p]["boites"] -= info["qte"]
 
-main()
+        commande = {
+            "num": num,
+            "date": date,
+            "client": client,
+            "revendeur": revendeur,
+            "prix_revendeur": prix_revendeur,
+            "chauffeur": chauffeur,
+            "prix_chauffeur": prix_chauffeur,
+            "autres_charges": autres_charges,
+            "total_charges": total_charges,
+            "produits": produits_vente,
+            "montant_total": total_montant,
+            "marge_brute": total_marge,
+            "benefice_net": benefice_net
+        }
+
+        data["commandes"].append(commande)
+        save()
+        st.success("Commande enregistrée ✔")
+        st.experimental_rerun()
+
+# -------------------------------------------------------
+# PAGE 2 : STOCK
+# -------------------------------------------------------
+elif menu == "Stock":
+    st.title("📦 Stock")
+
+    for p, s in data["stock"].items():
+        st.write(f"**{p}** — {s['boites']} boîtes | Achat : {s['achat']} | Vente : {s['vente']}")
+
+    st.subheader("Modifier un produit")
+    prod = st.selectbox("Produit", list(data["stock"].keys()))
+
+    new_qte = st.number_input("Nouvelle quantité", min_value=0, value=data["stock"][prod]["boites"])
+    new_achat = st.number_input("Prix d'achat", min_value=0.0, value=float(data["stock"][prod]["achat"]))
+    new_vente = st.number_input("Prix de vente", min_value=0.0, value=float(data["stock"][prod]["vente"]))
+
+    if st.button("Mettre à jour"):
+        data["stock"][prod]["boites"] = new_qte
+        data["stock"][prod]["achat"] = new_achat
+        data["stock"][prod]["vente"] = new_vente
+        save()
+        st.success("Stock mis à jour ✔")
+        st.experimental_rerun()
+
+# -------------------------------------------------------
+# PAGE 3 : HISTORIQUE
+# -------------------------------------------------------
+elif menu == "Historique":
+    st.title("📜 Historique des commandes")
+
+    if len(data["commandes"]) == 0:
+        st.info("Aucune commande enregistrée.")
+        st.stop()
+
+    rows = []
+    for c in data["commandes"]:
+        rows.append({
+            "num": c["num"],
+            "date": c["date"],
+            "client": c["client"],
+            "montant": c["montant_total"],
+            "charges": c["total_charges"],
+            "bénéfice": c["benefice_net"]
+        })
+
+    df = pd.DataFrame(rows)
+    st.dataframe(df, use_container_width=True)
+
+    choix = st.selectbox("N° commande", df["num"])
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("❌ Supprimer"):
+            data["commandes"] = [c for c in data["commandes"] if c["num"] != choix]
+            save()
+            st.success("Supprimée ✔")
+            st.experimental_rerun()
+
+    with col2:
+        st.warning("Modification à venir…")
