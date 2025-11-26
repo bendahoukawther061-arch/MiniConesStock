@@ -5,11 +5,7 @@ from datetime import datetime
 from PIL import Image
 import io
 
----------------------------
 
-CONFIG
-
----------------------------
 
 st.set_page_config(page_title="Mini Cones", page_icon="")
 PASSWORD = "bendahou mehdi"
@@ -28,11 +24,10 @@ else:
 st.error("Mot de passe incorrect ")
 st.stop()
 
----------------------------
+
 
 LOGO
 
----------------------------
 
 try:
 logo = Image.open("logo.png")
@@ -40,11 +35,9 @@ st.image(logo, width=180)
 except:
 st.warning("Logo introuvable — continue sans logo.")
 
----------------------------
 
 DATA FILE
 
----------------------------
 
 DATA_FILE = "stock.json"
 DEFAULT_STOCK = {
@@ -63,11 +56,9 @@ else:
 with open(DATA_FILE, "r") as f:
 data = json.load(f)
 
----------------------------
+
 
 UTIL FUNCTIONS
-
----------------------------
 
 def save_data():
 with open(DATA_FILE, "w") as f:
@@ -79,19 +70,15 @@ return sum(item["montant"] for item in produits_dict.values())
 def calc_total_marge(produits_dict):
 return sum((item["prix_vente"] - item["prix_achat"]) * item["qte_boite"] for item in produits_dict.values())
 
----------------------------
+
 
 MENU SELECTION
 
----------------------------
-
 page = st.sidebar.selectbox("Menu", ["Stock", "Nouvelle vente", "Historique"])
 
----------------------------
 
 STOCK PAGE
 
----------------------------
 
 if page == "Stock":
 st.title("Stock actuel")
@@ -111,11 +98,8 @@ save_data()
 st.success("Stock mis à jour ")
 st.experimental_rerun()
 
----------------------------
-
 NOUVELLE VENTE
 
----------------------------
 
 elif page == "Nouvelle vente":
 st.title("Nouvelle vente")
@@ -175,11 +159,9 @@ if st.button("Enregistrer la vente"):
         st.success("Vente enregistrée ")
         st.experimental_rerun()
 
----------------------------
 
 HISTORIQUE PAGE
 
----------------------------
 
 elif page == "Historique":
 st.title("Historique des ventes")
@@ -220,3 +202,4 @@ if vente:
             st.info("Pour l'instant, modification à coder séparément.")
 
 Note: Export PDF/HTML peut être ajouté avec reportlab et option de tout le tableau ou par commande.
+
