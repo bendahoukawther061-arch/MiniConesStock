@@ -1,0 +1,58 @@
+{
+    "stock": {
+        "Twine Cones": {
+            "boites": 96,
+            "fardeaux": 0
+        },
+        "Au Lait 50g": {
+            "boites": 200,
+            "fardeaux": 0
+        },
+        "Bueno 70g": {
+            "boites": 150,
+            "fardeaux": 0
+        },
+        "Pistachio": {
+            "boites": 180,
+            "fardeaux": 0
+        }
+    },
+    "ventes": [
+        {
+            "num": 1,
+            "date": "2025-11-24",
+            "client": "nassim",
+            "produits": {
+                "Twine Cones": {
+                    "unite": "Bo\u00eete",
+                    "qte": 4,
+                    "prix": 200.0,
+                    "montant": 800.0
+                },
+                "Au Lait 50g": {
+                    "unite": "Bo\u00eete",
+                    "qte": 0,
+                    "prix": 0.0,
+                    "montant": 0.0
+                },
+                "Bueno 70g": {
+                    "unite": "Bo\u00eete",
+                    "qte": 0,
+                    "prix": 0.0,
+                    "montant": 0.0
+                },
+                "Pistachio": {
+                    "unite": "Bo\u00eete",
+                    "qte": 0,
+                    "prix": 0.0,
+                    "montant": 0.0
+                }
+            },
+            "dettes": 0.0,
+            "operateur": "fethallah",
+            "chauffeur": "mohamed",
+            "frais": 0.0,
+            "caisse": 800.0
+        }
+    ]
+}
