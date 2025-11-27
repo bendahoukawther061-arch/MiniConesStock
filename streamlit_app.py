@@ -4,7 +4,6 @@ import json
 import os
 from datetime import datetime
 from fpdf import FPDF
-from io import BytesIO
 
 # ------------------------------
 # Config Streamlit
@@ -81,7 +80,7 @@ page = st.sidebar.radio("Navigation", ["Commandes", "Stock", "Historique"])
 if page == "Commandes":
     st.image("logo.png", width=150)
     st.title("🧾 Nouvelle Commande")
-    num = 1 if len(data["ventes"])==0 else data["ventes"][-1]["num"]+1
+    num = 1 if len(data["ventes"]) == 0 else data["ventes"][-1]["num"] + 1
     date = datetime.now().strftime("%Y-%m-%d %H:%M")
     st.write(f"**Commande N° {num} — {date}**")
 
@@ -89,39 +88,45 @@ if page == "Commandes":
     with col1:
         client = st.text_input("Client")
         revendeur = st.text_input("Revendeur")
-        charge_revendeur = st.number_input("Frais Revendeur (DA)", min_value=0.0, key="charge_rev")
+        prix_revendeur = st.number_input("Charge Revendeur (DA)", min_value=0.0, key="charge_rev")
     with col2:
         chauffeur = st.text_input("Chauffeur")
-        charge_chauffeur = st.number_input("Frais Chauffeur (DA)", min_value=0.0, key="charge_chauffeur")
+        prix_chauffeur = st.number_input("Charge Chauffeur (DA)", min_value=0.0, key="charge_chauffeur")
 
-    charge_van = st.number_input("Frais Van (DA)", min_value=0.0, key="charge_van")
-    autres = st.number_input("Autres frais (DA)", min_value=0.0, key="charge_autres")
-    total_charges = charge_revendeur + charge_chauffeur + charge_van + autres
+    charge_van = st.number_input("Charge Van (DA)", min_value=0.0, key="charge_van")
+    autres = st.number_input("Autres charges (DA)", min_value=0.0, key="charge_autres")
+    total_charges = prix_revendeur + prix_chauffeur + charge_van + autres
     st.info(f"🔸 Total Charges : **{total_charges} DA**")
 
     st.subheader("🧃 Produits")
-    total_ventes = 0
+    total_montant = 0
     vente_produits = {}
 
     for produit, info in data["stock"].items():
         st.markdown(f"### {produit}")
         colA, colB = st.columns(2)
         type_qte = "Box"
-        if produit=="Twine Cones":
-            type_qte = colA.selectbox(f"Type pour {produit}", ["Box","Fardeau"], key=f"type_{produit}")
+        if produit == "Twine Cones":
+            type_qte = colA.selectbox(f"Type pour {produit}", ["Box", "Fardeau"], key=f"type_{produit}")
         qte = colB.number_input(f"Quantité", min_value=0, step=1, key=f"qte_{produit}")
-        if produit=="Twine Cones" and type_qte=="Fardeau":
+        if produit == "Twine Cones" and type_qte == "Fardeau":
             qte *= 6
         prix_vente = info["prix_vente"]
         prix_achat = info["prix_achat"]
         montant = qte * prix_vente
-        total_ventes += montant
-        vente_produits[produit] = {"qte":qte,"prix_vente":prix_vente,"prix_achat":prix_achat,"montant":montant}
+        total_montant += montant
+        vente_produits[produit] = {
+            "qte": qte,
+            "prix_vente": prix_vente,
+            "prix_achat": prix_achat,
+            "montant": montant,
+            "benefice": (prix_vente - prix_achat) * qte
+        }
 
     st.subheader("📊 Résultat")
-    st.write(f"💰 Total ventes : **{total_ventes} DA**")
-    benefice = total_ventes - total_charges
-    st.success(f"🟢 Bénéfice : **{benefice} DA**")
+    st.write(f"💰 Total ventes : **{total_montant} DA**")
+    benefice = total_montant - total_charges - sum(p["prix_achat"] * p["qte"] for p in vente_produits.values())
+    st.success(f"🟢 Bénéfice net : **{benefice} DA**")
 
     if st.button("Enregistrer la commande"):
         vente = {
@@ -131,14 +136,14 @@ if page == "Commandes":
             "revendeur": revendeur,
             "chauffeur": chauffeur,
             "frais": {
-                "revendeur": charge_revendeur,
-                "chauffeur": charge_chauffeur,
+                "revendeur": prix_revendeur,
+                "chauffeur": prix_chauffeur,
                 "van": charge_van,
                 "autres": autres,
                 "total_frais": total_charges
             },
             "produits": vente_produits,
-            "total_ventes": total_ventes,
+            "total_ventes": total_montant,
             "benefice": benefice
         }
         data["ventes"].append(vente)
@@ -150,7 +155,7 @@ if page == "Commandes":
 # PAGE STOCK
 # ------------------------------
 if page == "Stock":
-    st.title("📦 Gestion du Stock")
+    st.title("📦 Stock des produits")
     for produit, info in data["stock"].items():
         st.markdown(f"### {produit}")
         col1, col2 = st.columns(2)
@@ -162,7 +167,8 @@ if page == "Stock":
         data["stock"][produit]["boites"] = boites
         data["stock"][produit]["prix_achat"] = prix_achat
         data["stock"][produit]["prix_vente"] = prix_vente
-    if st.button("Enregistrer le stock", key="save_stock"):
+
+    if st.button("Enregistrer le stock"):
         save_data(data)
         st.success("Stock sauvegardé ✔")
         st.experimental_rerun()
@@ -170,10 +176,27 @@ if page == "Stock":
 # ------------------------------
 # PAGE HISTORIQUE
 # ------------------------------
+def generate_pdf_bytes(ventes):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, "Historique des ventes", ln=1, align='C')
+    pdf.set_font("Arial", '', 12)
+    for vente in ventes:
+        pdf.cell(0, 8, f"Commande N° {vente['num']} — {vente['date']}", ln=1)
+        pdf.cell(0, 8, f"Client: {vente['client']}, Revendeur: {vente['revendeur']}, Chauffeur: {vente['chauffeur']}", ln=1)
+        pdf.cell(0, 8, f"Total Charges: {vente['frais']['total_frais']} DA", ln=1)
+        pdf.ln(2)
+        for prod, info in vente["produits"].items():
+            pdf.cell(0, 6, f"{prod}: Qte={info['qte']} | Achat={info['prix_achat']} | Vente={info['prix_vente']} | Montant={info['montant']} | Marge={info['benefice']}", ln=1)
+        pdf.ln(2)
+    pdf_bytes = pdf.output(dest='S').encode('latin1')
+    return pdf_bytes
+
 if page == "Historique":
     st.title("📜 Historique des ventes")
     if not data.get("ventes"):
-        st.info("Aucune vente enregistrée.")
+        st.info("Aucune vente.")
     else:
         for idx, vente in enumerate(data["ventes"]):
             with st.expander(f"N°{vente['num']} — {vente['date']} — Total {vente.get('total_ventes',0)} DA"):
@@ -188,36 +211,46 @@ if page == "Historique":
                         "Prix achat": pinfo.get("prix_achat",0),
                         "Prix vente": pinfo.get("prix_vente",0),
                         "Montant": pinfo.get("montant",0),
-                        "Marge": round((pinfo.get("prix_vente",0)-pinfo.get("prix_achat",0))*pinfo.get("qte",0),2)
+                        "Marge": pinfo.get("benefice",0)
                     })
                 df = pd.DataFrame(rows)
                 st.dataframe(df)
 
-# ------------------------------
-# Export PDF
-# ------------------------------
-def generate_pdf_bytes(ventes):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, "Historique des ventes", ln=1, align='C')
-    pdf.set_font("Arial", '', 12)
-    for vente in ventes:
-        pdf.cell(0, 8, f"Commande N° {vente['num']} — {vente['date']}", ln=1)
-        pdf.cell(0, 8, f"Client: {vente['client']}, Revendeur: {vente['revendeur']}, Chauffeur: {vente['chauffeur']}", ln=1)
-        pdf.cell(0, 8, f"Total Charges: {vente['frais']['total_frais']} DA", ln=1)
-        pdf.ln(2)
-        for prod, info in vente["produits"].items():
-            pdf.cell(0, 6, f"{prod}: Qte={info['qte']} | Achat={info['prix_achat']} | Vente={info['prix_vente']} | Montant={info['montant']}", ln=1)
-        pdf.ln(2)
-    buffer = BytesIO()
-    pdf.output(buffer)
-    buffer.seek(0)
-    return buffer
+                c1, c2, c3 = st.columns([1,1,1])
+                if c1.button("Modifier", key=f"hist_mod_{idx}"):
+                    st.session_state[f"edit_idx"] = idx
+                    st.experimental_rerun()
+                if c2.button("Supprimer", key=f"hist_del_{idx}"):
+                    data["ventes"].pop(idx)
+                    save_data(data)
+                    st.success("Vente supprimée ✔")
+                    st.experimental_rerun()
 
-st.sidebar.download_button(
-    "📄 Télécharger l'historique (PDF)",
-    data=generate_pdf_bytes(data.get("ventes", [])),
-    file_name="historique_mini_cones.pdf",
-    mime="application/pdf"
-)
+                if st.session_state.get("edit_idx") == idx:
+                    st.info("Mode édition: change les quantités et clique Sauvegarder.")
+                    edited = {}
+                    for row in rows:
+                        k = row["Produit"]
+                        newq = st.number_input(f"Nouvelle quantité - {k}", min_value=0, value=int(row["Quantité"]), key=f"edit_q_{idx}_{k}")
+                        edited[k] = int(newq)
+                    if st.button("Sauvegarder modification", key=f"save_edit_{idx}"):
+                        vente_obj = data["ventes"][idx]
+                        for pname, newq in edited.items():
+                            if pname in vente_obj["produits"]:
+                                p = vente_obj["produits"][pname]
+                                p["qte"] = int(newq)
+                                p["montant"] = round(p["prix_vente"] * p["qte"],2)
+                                p["benefice"] = round((p["prix_vente"] - p["prix_achat"]) * p["qte"],2)
+                        vente_obj["total_ventes"] = round(sum(p["montant"] for p in vente_obj["produits"].values()),2)
+                        vente_obj["benefice"] = round(vente_obj["total_ventes"] - vente_obj["frais"]["total_frais"] - sum(p["prix_achat"]*p["qte"] for p in vente_obj["produits"].values()),2)
+                        save_data(data)
+                        st.success("Modification sauvegardée ✔")
+                        st.session_state.pop("edit_idx", None)
+                        st.experimental_rerun()
+
+        st.download_button(
+            "📄 Télécharger l'historique (PDF)",
+            data=generate_pdf_bytes(data.get("ventes", [])),
+            file_name="historique_mini_cones.pdf",
+            mime="application/pdf"
+        )
