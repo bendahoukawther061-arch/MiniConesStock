@@ -17,7 +17,7 @@ if "auth" not in st.session_state:
     st.session_state.auth = False
 
 if not st.session_state.auth:
-    st.title("MiniCones")
+    st.title("Connexion")
     pwd = st.text_input("Mot de passe", type="password")
     if st.button("Valider"):
         if pwd.lower() == PASSWORD:
@@ -276,5 +276,6 @@ elif page == "Historique":
             pdf_bytes = f.read()
             b64 = base64.b64encode(pdf_bytes).decode()
         st.markdown(f'<a download="{file_path}" href="data:application/pdf;base64,{b64}">📥 Télécharger PDF tableau produits</a>', unsafe_allow_html=True)
+
 
 
