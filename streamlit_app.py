@@ -21,38 +21,13 @@ st.set_page_config(page_title="Mini Cones", page_icon="🍦", layout="wide")
 page_bg = """
 
 <style>
-.stApp {
-    background: linear-gradient(135deg, #ffe6f2 0%, #fff8fd 40%, #f7e6d5 80%);
-    transition: all 0.5s ease;
-}
-.stButton>button {
-    background-color: #b56576 !important;
-    color: white !important;
-    border-radius: 12px !important;
-    height: 3em;
-    font-size: 18px;
-    font-weight: bold;
-}
-.stDownloadButton>button {
-    background-color: #6d6875 !important;
-    color: white !important;
-    border-radius: 10px !important;
-}
-h1,h2,h3,h4 {
-    color: #b56576 !important;
-    font-weight: 800 !important;
-}
-.stButton>button:hover {
-    background-color: #8e4f63 !important;
-    transform: scale(1.05);
-}
-.fade-in {
-    animation: fadein 1s;
-}
-@keyframes fadein {
-    from {opacity:0;}
-    to {opacity:1;}
-}
+.stApp { background: linear-gradient(135deg, #ffe6f2 0%, #fff8fd 40%, #f7e6d5 80%); transition: all 0.5s ease; }
+.stButton>button { background-color: #b56576 !important; color: white !important; border-radius: 12px !important; height: 3em; font-size: 18px; font-weight: bold;}
+.stDownloadButton>button { background-color: #6d6875 !important; color: white !important; border-radius: 10px !important;}
+h1,h2,h3,h4 { color: #b56576 !important; font-weight: 800 !important;}
+.stButton>button:hover { background-color: #8e4f63 !important; transform: scale(1.05);}
+.fade-in { animation: fadein 1s;}
+@keyframes fadein { from {opacity:0;} to {opacity:1;} }
 </style>
 
 """
@@ -70,10 +45,10 @@ def load_data():
 if not os.path.exists(DATA_FILE):
 return {
 "stock": {
-"Twine Cones": {"boites": 0, "prix_achat": 0, "prix_vente": 0},
-"Cones Pistache": {"boites": 0, "prix_achat": 0, "prix_vente": 0},
-"Bueno au Lait": {"boites": 0, "prix_achat": 0, "prix_vente": 0},
-"Crêpes": {"boites": 0, "prix_achat": 0, "prix_vente": 0}
+"Twine Cones": {"boites": 0, "prix_achat": 0, "prix_vente": 200},
+"Cones Pistache": {"boites": 0, "prix_achat": 0, "prix_vente": 250},
+"Bueno au Lait": {"boites": 0, "prix_achat": 0, "prix_vente": 300},
+"Crêpes": {"boites": 0, "prix_achat": 0, "prix_vente": 150}
 },
 "ventes": []
 }
@@ -158,7 +133,7 @@ for produit, info in data["stock"].items():
     qte = colB.number_input(f"Quantité", min_value=0, step=1, key=f"qte_{produit}")
     if produit=="Twine Cones" and type_qte=="Fardeau":
         qte *= 6
-    prix_vente = info["prix_vente"]
+    prix_vente = info["prix_vente"]  # prix de vente uniquement depuis le stock
     montant = qte * prix_vente
     total_montant += montant
     vente_produits[produit] = {"qte":qte,"prix_vente":prix_vente,"prix_achat":info["prix_achat"],"montant":montant}
@@ -167,29 +142,6 @@ st.subheader("📊 Résultat")
 st.write(f"💰 Total ventes : **{total_montant} DA**")
 benefice = total_montant - total_charges
 st.success(f"🟢 Bénéfice : **{benefice} DA**")
-
-if st.button("Enregistrer la commande"):
-    vente = {
-        "num":num,"date":date,"client":client,"revendeur":revendeur,"chauffeur":chauffeur,
-        "charges":total_charges,"produits":vente_produits,"total":total_montant,"benefice":benefice
-    }
-    data["ventes"].append(vente)
-    save_data(data)
-    st.success("Commande enregistrée ✔")
-    st.experimental_rerun()
-
-# Export CSV
-if len(data["ventes"])>0:
-    df = pd.DataFrame([{
-        "Num": v["num"], "Date": v["date"], "Client": v["client"],
-        "Total": v["total"], "Charges": v["charges"], "Bénéfice": v["benefice"]
-    } for v in data["ventes"]])
-    st.download_button(
-        "📥 Export CSV tableau",
-        df.to_csv(index=False).encode("utf-8"),
-        "historique.csv",
-        "text/csv"
-    )
 ```
 
 # ------------------------------
@@ -203,15 +155,16 @@ st.image("logo.png", width=150)
 st.title("📦 Gestion du Stock")
 st.subheader("Stock actuel")
 for p, info in data["stock"].items():
-st.write(f"**{p}** : {info['boites']} box — Prix Vente {info['prix_vente']} DA")
+st.write(f"**{p}** : {info['boites']} box — Achat {info['prix_achat']} DA — Vente {info['prix_vente']} DA")
 st.markdown("---")
 st.subheader("➕ Modifier / Ajouter quantité")
 prod = st.selectbox("Produit", list(data["stock"].keys()))
 new_qte = st.number_input("Quantité à ajouter", min_value=0)
-prixV = st.number_input("Prix vente (DA)", value=float(data["stock"][prod]["prix_vente"]))
+prixA = st.number_input("Prix achat (DA)", value=float(data["stock"][prod]["prix_achat"]))
+prixV = float(data["stock"][prod]["prix_vente"])  # prix vente ne peut être changé ici
 if st.button("Mettre à jour le stock"):
 data["stock"][prod]["boites"] += new_qte
-data["stock"][prod]["prix_vente"] = prixV
+data["stock"][prod]["prix_achat"] = prixA
 save_data(data)
 st.success("Stock mis à jour ✔")
 st.experimental_rerun()
@@ -234,7 +187,7 @@ df = pd.DataFrame([{
 } for v in data["ventes"]])
 st.dataframe(df)
 st.download_button(
-"📥 Export CSV tableau",
+"📥 Export CSV",
 df.to_csv(index=False).encode("utf-8"),
 "historique.csv",
 "text/csv"
