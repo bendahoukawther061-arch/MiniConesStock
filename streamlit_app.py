@@ -4,7 +4,6 @@ import json
 import os
 from datetime import datetime
 from fpdf import FPDF
-import io
 
 # ------------------------------
 # Config Streamlit
@@ -63,8 +62,8 @@ def load_data():
             "stock": {
                 "Twine Cones": {"boites": 0, "prix_achat": 0, "prix_vente": 200},
                 "Cones Pistache": {"boites": 0, "prix_achat": 0, "prix_vente": 250},
-                "Au Lait": {"boites": 0, "prix_achat": 0, "prix_vente": 220},
-                "Crêpes": {"boites": 0, "prix_achat": 0, "prix_vente": 180}
+                "Bueno au Lait": {"boites": 0, "prix_achat": 0, "prix_vente": 220},
+                "Crêpes": {"boites": 0, "prix_achat": 0, "prix_vente": 240}
             },
             "ventes": []
         }
@@ -142,12 +141,7 @@ if page == "Commandes":
         prix_vente = info["prix_vente"]
         montant = qte * prix_vente
         total_montant += montant
-        vente_produits[produit] = {
-            "qte": qte,
-            "prix_vente": prix_vente,
-            "prix_achat": info["prix_achat"],
-            "montant": montant
-        }
+        vente_produits[produit] = {"qte":qte,"prix_vente":prix_vente,"prix_achat":info["prix_achat"],"montant":montant}
 
     st.subheader("📊 Résultat")
     st.write(f"💰 Total ventes : **{total_montant} DA**")
@@ -169,7 +163,6 @@ if page == "Commandes":
         data["ventes"].append(vente)
         save_data(data)
         st.success("Commande enregistrée ✔")
-        st.experimental_rerun()
 
 # ------------------------------
 # PAGE STOCK
@@ -192,7 +185,6 @@ elif page == "Stock":
         data["stock"][prod]["prix_vente"] = prixV
         save_data(data)
         st.success("Stock mis à jour ✔")
-        st.experimental_rerun()
 
 # ------------------------------
 # PAGE HISTORIQUE
@@ -200,21 +192,10 @@ elif page == "Stock":
 elif page == "Historique":
     st.image("logo.png", width=150)
     st.title("📜 Historique des Commandes")
-    if len(data["ventes"]) == 0:
+    if len(data["ventes"])==0:
         st.info("Aucune commande.")
     else:
-        df = pd.DataFrame([{
-            "Num": v["num"],
-            "Date": v["date"],
-            "Client": v["client"],
-            "Total": v["total"],
-            "Charges": v["charges"],
-            "Bénéfice": v["benefice"]
-        } for v in data["ventes"]])
-        st.dataframe(df)
-
         # Générer PDF
-        pdf_buffer = io.BytesIO()
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", size=12)
@@ -226,12 +207,10 @@ elif page == "Historique":
             pdf.multi_cell(0, 8, f"Client: {v['client']}, Total: {v['total']} DA, Charges: {v['charges']} DA, Bénéfice: {v['benefice']} DA")
             pdf.ln(5)
 
-        pdf.output(pdf_buffer)
-        pdf_buffer.seek(0)
-
+        pdf_bytes = pdf.output(dest='S').encode('latin1')
         st.download_button(
             "📥 Export PDF",
-            pdf_buffer,
+            pdf_bytes,
             file_name="historique.pdf",
             mime="application/pdf"
         )
