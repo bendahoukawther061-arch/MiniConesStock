@@ -2,37 +2,28 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-from datetime import datetime, date
+from datetime import datetime
 from fpdf import FPDF
 from io import BytesIO
 
-# ------------------------------
-# Config Streamlit
-# ------------------------------
+# ------------------------------------------------
+# CONFIG
+# ------------------------------------------------
 st.set_page_config(page_title="Mini Cones", page_icon="🍦", layout="wide")
 
-# ------------------------------
-# CSS
-# ------------------------------
 page_bg = """
 <style>
-.stApp {background: linear-gradient(135deg, #ffe6f2, #fff8fd, #f7e6d5);}
+.stApp {background: linear-gradient(135deg, #ffe6f2 0%, #fff8fd 40%, #f7e6d5 80%);}
 .stButton>button {background-color: #b56576 !important; color: white !important; border-radius: 12px !important; font-size: 18px;}
-.stDownloadButton>button {background-color: #6d6875 !important; color: white !important; border-radius: 10px !important;}
-h1,h2,h3,h4 {color: #b56576 !important; font-weight: 800 !important;}
 </style>
 """
 st.markdown(page_bg, unsafe_allow_html=True)
 
-# ------------------------------
-# Fichiers
-# ------------------------------
 DATA_FILE = "stock.json"
-AUTO_DIR = "historique_auto"
 
-if not os.path.exists(AUTO_DIR):
-    os.makedirs(AUTO_DIR)
-
+# ------------------------------------------------
+# LOAD & SAVE
+# ------------------------------------------------
 def load_data():
     if not os.path.exists(DATA_FILE):
         return {
@@ -42,8 +33,7 @@ def load_data():
                 "Bueno au Lait": {"boites": 0, "prix_achat": 0, "prix_vente": 220},
                 "Crêpes": {"boites": 0, "prix_achat": 0, "prix_vente": 180}
             },
-            "ventes": [],
-            "last_export": ""
+            "ventes": []
         }
     with open(DATA_FILE, "r") as f:
         return json.load(f)
@@ -54,51 +44,9 @@ def save_data(data):
 
 data = load_data()
 
-# ------------------------------
-# Export PDF (normal + auto)
-# ------------------------------
-def generate_pdf(ventes):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, "Historique des ventes", ln=1, align='C')
-    pdf.set_font("Arial", '', 12)
-
-    for vente in ventes:
-        pdf.cell(0, 10, f"Commande N° {vente['num']} — {vente['date']}", ln=1)
-        pdf.cell(0, 8, f"Client: {vente['client']} | Revendeur: {vente['revendeur']} | Chauffeur: {vente['chauffeur']}", ln=1)
-        pdf.cell(0, 8, f"Charges totales: {vente['charges']['total']} DA", ln=1)
-        pdf.ln(3)
-        for prod, info in vente["produits"].items():
-            pdf.cell(0, 6, f"{prod}: Qte={info['qte']} | Achat={info['prix_achat']} | Vente={info['prix_vente']} | Montant={info['montant']}", ln=1)
-        pdf.ln(2)
-
-    return pdf
-
-def export_pdf_download():
-    pdf = generate_pdf(data["ventes"])
-    buffer = BytesIO()
-    pdf.output(buffer)
-    buffer.seek(0)
-    return buffer
-
-def auto_export_pdf():
-    today = str(date.today())
-    if data.get("last_export") != today:
-        filename = f"{AUTO_DIR}/historique_{today}.pdf"
-        pdf = generate_pdf(data["ventes"])
-        pdf.output(filename)
-        data["last_export"] = today
-        save_data(data)
-
-# ------------------------------
-# AUTO SAVE À MINUIT
-# ------------------------------
-auto_export_pdf()
-
-# ------------------------------
-# Login
-# ------------------------------
+# ------------------------------------------------
+# LOGIN
+# ------------------------------------------------
 if 'login' not in st.session_state:
     st.session_state['login'] = False
 
@@ -107,162 +55,145 @@ if not st.session_state['login']:
     st.subheader("🔒 Login")
     username = st.text_input("Nom d'utilisateur")
     password = st.text_input("Mot de passe", type="password")
+
     if st.button("Se connecter"):
-        if username == "bendahou mehdi" and password == "mehdi123":
+        if username == "bendahou" and password == "mehdi123":
             st.session_state['login'] = True
-            st.success("Connecté ✔")
+            st.experimental_rerun()
         else:
-            st.error("Nom d'utilisateur ou mot de passe incorrect")
+            st.error("Identifiants incorrects")
     st.stop()
 
-# ------------------------------
-# Sidebar
-# ------------------------------
-st.sidebar.image("logo.png", width=120)
-page = st.sidebar.radio("Navigation", ["Commandes", "Stock", "Historique"])
+# ------------------------------------------------
+# FONCTION EXPORT PDF
+# ------------------------------------------------
+def export_pdf(ventes):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
 
-# ------------------------------
-# PAGE COMMANDES
-# ------------------------------
-if page == "Commandes":
-    st.image("logo.png", width=150)
-    st.title("🧾 Nouvelle Commande")
+    pdf.cell(200, 10, txt="Historique des ventes", ln=1, align="C")
 
-    num = 1 if len(data["ventes"])==0 else data["ventes"][-1]["num"]+1
-    date_now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    for v in ventes:
+        pdf.cell(200, 8, txt=f"Date : {v['date']} | Total : {v['total']} DA", ln=1)
+        for p, infos in v["produits"].items():
+            pdf.cell(200, 8, txt=f" - {p}: {infos['quantite']} boites (achat {infos['prix_achat']} / vente {infos['prix_vente']})", ln=1)
 
-    st.write(f"**Commande N° {num} — {date_now}**")
+    buffer = BytesIO()
+    pdf.output(buffer, "F")
+    buffer.seek(0)
+    return buffer
 
-    col1, col2 = st.columns(2)
-    with col1:
-        client = st.text_input("Client")
-        revendeur = st.text_input("Revendeur")
-        prix_rev = st.number_input("Charge Revendeur (DA)", min_value=0.0)
-    with col2:
-        chauffeur = st.text_input("Chauffeur")
-        prix_chauff = st.number_input("Charge Chauffeur (DA)", min_value=0.0)
+# ------------------------------------------------
+# PAGE PRINCIPALE
+# ------------------------------------------------
+st.title("🍦 Mini Cones – Stock & Ventes")
 
-    charge_van = st.number_input("Charge Van (DA)", min_value=0.0)
-    autres = st.number_input("Autres charges (DA)", min_value=0.0)
+menu = st.sidebar.radio("Navigation", ["Stock", "Vente", "Historique"])
 
-    total_charges = prix_rev + prix_chauff + charge_van + autres
-    st.info(f"🔸 Total Charges : **{total_charges} DA**")
+# ------------------------------------------------
+# PAGE STOCK
+# ------------------------------------------------
+if menu == "Stock":
+    st.header("📦 Gestion du Stock")
 
-    # Produits
-    st.subheader("🧃 Produits")
-    total_ventes = 0
-    vente_produits = {}
+    for produit, infos in data["stock"].items():
+        st.subheader(produit)
+        colA, colB, colC = st.columns(3)
 
-    for produit, info in data["stock"].items():
-        st.markdown(f"### {produit}")
+        nv_boites = colA.number_input(
+            f"Boîtes en stock ({produit})",
+            min_value=0,
+            value=infos["boites"],
+            key=f"stk_{produit}"
+        )
+
+        prix_achat = colB.number_input(
+            f"Prix d'achat ({produit})",
+            min_value=0,
+            value=infos["prix_achat"],
+            key=f"pa_{produit}"
+        )
+
+        prix_vente = colC.number_input(
+            f"Prix de vente ({produit})",
+            min_value=0,
+            value=infos["prix_vente"],
+            key=f"pv_{produit}"
+        )
+
+        data["stock"][produit]["boites"] = nv_boites
+        data["stock"][produit]["prix_achat"] = prix_achat
+        data["stock"][produit]["prix_vente"] = prix_vente
+
+    if st.button("💾 Enregistrer le stock"):
+        save_data(data)
+        st.success("Stock mis à jour !")
+
+# ------------------------------------------------
+# PAGE VENTE
+# ------------------------------------------------
+if menu == "Vente":
+    st.header("🛒 Nouvelle Vente")
+
+    vente = {"produits": {}, "total": 0}
+
+    for produit, infos in data["stock"].items():
+        st.subheader(produit)
         colA, colB = st.columns(2)
 
-        type_qte = "Box"
-        if produit == "Twine Cones":
-            type_qte = colA.selectbox(f"Type", ["Box", "Fardeau"])
+        qte = colA.number_input(
+            f"Quantité vendue ({produit})",
+            min_value=0,
+            key=f"qte_{produit}"
+        )
 
-        qte = colB.number_input("Quantité", min_value=0)
+        if qte > 0:
+            if qte > infos["boites"]:
+                st.error(f"Stock insuffisant pour {produit}")
+            else:
+                vente["produits"][produit] = {
+                    "quantite": qte,
+                    "prix_achat": infos["prix_achat"],
+                    "prix_vente": infos["prix_vente"]
+                }
+                vente["total"] += qte * infos["prix_vente"]
 
-        if produit == "Twine Cones" and type_qte == "Fardeau":
-            qte *= 6
+    if st.button("Valider la vente"):
+        if vente["produits"]:
+            vente["date"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            data["ventes"].append(vente)
 
-        prix_vente = info["prix_vente"]
-        prix_achat = info["prix_achat"]
-        montant = qte * prix_vente
-        total_ventes += montant
+            for p, infos in vente["produits"].items():
+                data["stock"][p]["boites"] -= infos["quantite"]
 
-        vente_produits[produit] = {
-            "qte": qte,
-            "prix_vente": prix_vente,
-            "prix_achat": prix_achat,
-            "montant": montant
-        }
+            save_data(data)
+            st.success("Vente enregistrée !")
 
-    st.subheader("📊 Résultat")
-    st.write(f"💰 Total ventes : **{total_ventes} DA**")
-    benefice = total_ventes - total_charges
-    st.success(f"🟢 Bénéfice : **{benefice} DA**")
-
-    if st.button("Enregistrer la commande"):
-        vente = {
-            "num": num,
-            "date": date_now,
-            "client": client,
-            "revendeur": revendeur,
-            "chauffeur": chauffeur,
-            "charges": {
-                "revendeur": prix_rev,
-                "chauffeur": prix_chauff,
-                "van": charge_van,
-                "autres": autres,
-                "total": total_charges
-            },
-            "produits": vente_produits,
-            "total_ventes": total_ventes,
-            "benefice": benefice
-        }
-
-        data["ventes"].append(vente)
-        save_data(data)
-        st.success("Commande enregistrée ✔")
-        st.experimental_rerun()
-
-# ------------------------------
-# PAGE STOCK
-# ------------------------------
-if page == "Stock":
-    st.title("📦 Stock")
-    for produit, info in data["stock"].items():
-        st.subheader(produit)
-        col1, col2 = st.columns(2)
-        with col1:
-            boites = st.number_input("Boîtes", value=info["boites"], min_value=0)
-        with col2:
-            achat = st.number_input("Prix achat", value=info["prix_achat"], min_value=0)
-            vente = st.number_input("Prix vente", value=info["prix_vente"], min_value=0)
-
-        data["stock"][produit]["boites"] = boites
-        data["stock"][produit]["prix_achat"] = achat
-        data["stock"][produit]["prix_vente"] = vente
-
-    if st.button("Mettre à jour"):
-        save_data(data)
-        st.success("Stock mis à jour ✔")
-
-# ------------------------------
+# ------------------------------------------------
 # PAGE HISTORIQUE
-# ------------------------------
-if page == "Historique":
-    st.title("📜 Historique des ventes")
+# ------------------------------------------------
+if menu == "Historique":
+    st.header("📜 Historique des ventes")
 
-    for vente in data["ventes"]:
-        st.subheader(f"Commande N° {vente['num']} — {vente['date']}")
+    if data["ventes"]:
+        for i, vente in enumerate(data["ventes"]):
+            with st.expander(f"Vente du {vente['date']} - Total {vente['total']} DA"):
+                st.write(vente["produits"])
 
-        st.write(f"Client : **{vente['client']}**")
-        st.write(f"Revendeur : **{vente['revendeur']}**")
-        st.write(f"Chauffeur : **{vente['chauffeur']}**")
-        st.write(f"Charges totales : **{vente['charges']['total']} DA**")
+                col1, col2 = st.columns(2)
 
-        df = pd.DataFrame(vente["produits"]).T
-        st.dataframe(df)
+                if col1.button("📝 Modifier", key=f"edit_{i}"):
+                    st.warning("La modification sera ajoutée bientôt.")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Modifier", key=f"mod_{vente['num']}"):
-                st.warning("La modification arrive bientôt.")
-        with col2:
-            if st.button("Supprimer", key=f"sup_{vente['num']}"):
-                data["ventes"].remove(vente)
-                save_data(data)
-                st.success("Commande supprimée ✔")
-                st.experimental_rerun()
+                if col2.button("❌ Supprimer", key=f"del_{i}"):
+                    data["ventes"].pop(i)
+                    save_data(data)
+                    st.experimental_rerun()
 
-# ------------------------------
-# DOWNLOAD PDF
-# ------------------------------
-st.sidebar.download_button(
-    "📄 Télécharger PDF",
-    data=export_pdf_download(),
-    file_name="historique_ventes.pdf",
-    mime="application/pdf"
-)
+        if st.button("📄 Télécharger PDF"):
+            pdf_file = export_pdf(data["ventes"])
+            st.download_button("Télécharger", pdf_file, "historique.pdf")
+
+    else:
+        st.info("Aucune vente enregistrée pour le moment.")
