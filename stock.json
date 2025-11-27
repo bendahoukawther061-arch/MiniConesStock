@@ -1,10 +1,9 @@
 {
-    "stock": {
-        "Twine Cones": { "boites": 50, "prix_achat": 10, "prix_vente": 15 },
-        "Pistache": { "boites": 60, "prix_achat": 12, "prix_vente": 18 },
-        "Bueno": { "boites": 40, "prix_achat": 14, "prix_vente": 20 },
-        "Au Lait": { "boites": 80, "prix_achat": 11, "prix_vente": 17 },
-        "Crêpes": { "boites": 70, "prix_achat": 9, "prix_vente": 14 }
-    },
-    "ventes": []
+"stock": {
+"Twine Cones": {"boites": 0, "prix_achat": 0, "prix_vente": 200},
+"Cones Pistache": {"boites": 0, "prix_achat": 0, "prix_vente": 250},
+"Bueno au Lait": {"boites": 0, "prix_achat": 0, "prix_vente": 300},
+"Crêpes": {"boites": 0, "prix_achat": 0, "prix_vente": 150}
+},
+"ventes": []
 }
