@@ -2,3 +2,4 @@ streamlit
 pandas
 fpdf
 schedule
+fpdf2
