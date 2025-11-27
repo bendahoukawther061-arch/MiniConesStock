@@ -32,8 +32,14 @@ page_bg = """
     color: white !important;
     border-radius: 10px !important;
 }
-h1,h2,h3,h4 { color: #b56576 !important; font-weight: 800 !important; }
-.stButton>button:hover { background-color: #8e4f63 !important; transform: scale(1.05); }
+h1,h2,h3,h4 {
+    color: #b56576 !important;
+    font-weight: 800 !important;
+}
+.stButton>button:hover {
+    background-color: #8e4f63 !important;
+    transform: scale(1.05);
+}
 </style>
 """
 st.markdown(page_bg, unsafe_allow_html=True)
@@ -49,8 +55,8 @@ def load_data():
             "stock": {
                 "Twine Cones": {"boites": 0, "prix_achat": 0, "prix_vente": 200},
                 "Cones Pistache": {"boites": 0, "prix_achat": 0, "prix_vente": 250},
-                "Bueno au Lait": {"boites": 0, "prix_achat": 0, "prix_vente": 200},
-                "Crêpes": {"boites": 0, "prix_achat": 0, "prix_vente": 220}
+                "Bueno au Lait": {"boites": 0, "prix_achat": 0, "prix_vente": 220},
+                "Crêpes": {"boites": 0, "prix_achat": 0, "prix_vente": 180}
             },
             "ventes": []
         }
@@ -137,9 +143,15 @@ if page == "Commandes":
 
     if st.button("Enregistrer la commande"):
         vente = {
-            "num": num, "date": date, "client": client, "revendeur": revendeur,
-            "chauffeur": chauffeur, "charges": total_charges,
-            "produits": vente_produits, "total": total_montant, "benefice": benefice
+            "num": num,
+            "date": date,
+            "client": client,
+            "revendeur": revendeur,
+            "chauffeur": chauffeur,
+            "charges": total_charges,
+            "produits": vente_produits,
+            "total": total_montant,
+            "benefice": benefice
         }
         data["ventes"].append(vente)
         save_data(data)
@@ -155,7 +167,6 @@ elif page == "Stock":
     st.subheader("Stock actuel")
     for p, info in data["stock"].items():
         st.write(f"**{p}** : {info['boites']} box — Achat {info['prix_achat']} DA — Vente {info['prix_vente']} DA")
-    
     st.markdown("---")
     st.subheader("➕ Modifier / Ajouter quantité")
     prod = st.selectbox("Produit", list(data["stock"].keys()))
@@ -171,7 +182,7 @@ elif page == "Stock":
         st.experimental_rerun()
 
 # ------------------------------
-# PAGE HISTORIQUE
+# PAGE HISTORIQUE avec modification et suppression
 # ------------------------------
 elif page == "Historique":
     st.image("logo.png", width=150)
@@ -180,12 +191,49 @@ elif page == "Historique":
     if len(data["ventes"]) == 0:
         st.info("Aucune commande.")
     else:
-        # Tableau
+        # Affichage du tableau
         df = pd.DataFrame([{
-            "Num": v["num"], "Date": v["date"], "Client": v["client"],
-            "Total": v["total"], "Charges": v["charges"], "Bénéfice": v["benefice"]
+            "Num": v["num"],
+            "Date": v["date"],
+            "Client": v["client"],
+            "Revendeur": v["revendeur"],
+            "Chauffeur": v["chauffeur"],
+            "Total": v["total"],
+            "Charges": v["charges"],
+            "Bénéfice": v["benefice"]
         } for v in data["ventes"]])
         st.dataframe(df)
+
+        # Sélection de la commande
+        num_commande = st.number_input("Numéro de commande à modifier/supprimer", min_value=1, max_value=len(data["ventes"]), step=1)
+
+        index = num_commande - 1
+        commande = data["ventes"][index]
+
+        st.subheader("✏️ Modifier la commande")
+        client = st.text_input("Client", value=commande["client"])
+        revendeur = st.text_input("Revendeur", value=commande["revendeur"])
+        chauffeur = st.text_input("Chauffeur", value=commande["chauffeur"])
+        charges = st.number_input("Charges totales (DA)", value=commande["charges"])
+        total = st.number_input("Total ventes (DA)", value=commande["total"])
+
+        if st.button("Mettre à jour la commande"):
+            commande["client"] = client
+            commande["revendeur"] = revendeur
+            commande["chauffeur"] = chauffeur
+            commande["charges"] = charges
+            commande["total"] = total
+            commande["benefice"] = total - charges
+            data["ventes"][index] = commande
+            save_data(data)
+            st.success("Commande modifiée ✔")
+            st.experimental_rerun()
+
+        if st.button("Supprimer la commande"):
+            data["ventes"].pop(index)
+            save_data(data)
+            st.success("Commande supprimée ✔")
+            st.experimental_rerun()
 
         # Export PDF
         def export_pdf(ventes):
@@ -196,38 +244,8 @@ elif page == "Historique":
             pdf.ln(10)
             for v in ventes:
                 pdf.cell(0, 8, f"N°{v['num']} | {v['date']} | Client: {v['client']} | Total: {v['total']} DA | Bénéfice: {v['benefice']} DA", ln=True)
-            buffer = io.BytesIO()
-            pdf.output(buffer)
-            return buffer
+            pdf_bytes = pdf.output(dest='S').encode('latin1')
+            return io.BytesIO(pdf_bytes)
 
         pdf_buffer = export_pdf(data["ventes"])
         st.download_button("📥 Export PDF", pdf_buffer.getvalue(), "historique.pdf", "application/pdf")
-
-        # Supprimer
-        st.subheader("Supprimer une commande")
-        num_suppr = st.selectbox("Sélectionner le numéro à supprimer", [v["num"] for v in data["ventes"]])
-        if st.button("Supprimer"):
-            data["ventes"] = [v for v in data["ventes"] if v["num"] != num_suppr]
-            save_data(data)
-            st.success(f"Commande N°{num_suppr} supprimée ✔")
-            st.experimental_rerun()
-
-        # Modifier
-        st.subheader("Modifier une commande")
-        num_modif = st.selectbox("Sélectionner le numéro à modifier", [v["num"] for v in data["ventes"]], key="modif_num")
-        if num_modif:
-            vente = next((v for v in data["ventes"] if v["num"] == num_modif), None)
-            if vente:
-                client_modif = st.text_input("Client", value=vente["client"])
-                revendeur_modif = st.text_input("Revendeur", value=vente["revendeur"])
-                chauffeur_modif = st.text_input("Chauffeur", value=vente["chauffeur"])
-                charges_modif = st.number_input("Charges totales", value=vente["charges"])
-                
-                if st.button("Enregistrer modifications"):
-                    vente["client"] = client_modif
-                    vente["revendeur"] = revendeur_modif
-                    vente["chauffeur"] = chauffeur_modif
-                    vente["charges"] = charges_modif
-                    save_data(data)
-                    st.success(f"Commande N°{num_modif} modifiée ✔")
-                    st.experimental_rerun()
