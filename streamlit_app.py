@@ -12,7 +12,7 @@ from io import BytesIO
 st.set_page_config(page_title="Mini Cones", page_icon="🍦", layout="wide")
 
 # ------------------------------
-# Thème CSS clair
+# Thème CSS
 # ------------------------------
 page_bg = """
 <style>
@@ -37,8 +37,7 @@ def load_data():
                 "Twine Cones": {"boites": 0, "prix_achat": 0, "prix_vente": 200},
                 "Cones Pistache": {"boites": 0, "prix_achat": 0, "prix_vente": 250},
                 "Bueno au Lait": {"boites": 0, "prix_achat": 0, "prix_vente": 220},
-                "Crêpes": {"boites": 0, "prix_achat": 0, "prix_vente": 180},
-                "Au Lait": {"boites": 0, "prix_achat": 0, "prix_vente": 230}
+                "Crêpes": {"boites": 0, "prix_achat": 0, "prix_vente": 180}
             },
             "ventes": []
         }
@@ -82,8 +81,7 @@ page = st.sidebar.radio("Navigation", ["Commandes", "Stock", "Historique"])
 if page == "Commandes":
     st.image("logo.png", width=150)
     st.title("🧾 Nouvelle Commande")
-    
-    num = 1 if len(data["ventes"]) == 0 else data["ventes"][-1]["num"] + 1
+    num = 1 if len(data["ventes"])==0 else data["ventes"][-1]["num"]+1
     date = datetime.now().strftime("%Y-%m-%d %H:%M")
     st.write(f"**Commande N° {num} — {date}**")
 
@@ -98,40 +96,32 @@ if page == "Commandes":
 
     charge_van = st.number_input("Charge Van (DA)", min_value=0.0, key="charge_van")
     autres = st.number_input("Autres charges (DA)", min_value=0.0, key="charge_autres")
-
-    total_frais = prix_revendeur + prix_chauffeur + charge_van + autres
-    st.info(f"🔸 Total des frais : **{total_frais} DA**")
+    total_charges = prix_revendeur + prix_chauffeur + charge_van + autres
+    st.info(f"🔸 Total Charges : **{total_charges} DA**")
 
     st.subheader("🧃 Produits")
-    total_ventes = 0
-    total_cout = 0
+    total_montant = 0
     vente_produits = {}
 
     for produit, info in data["stock"].items():
         st.markdown(f"### {produit}")
         colA, colB = st.columns(2)
-        qte = colB.number_input(f"Quantité {produit}", min_value=0, step=1, key=f"qte_{produit}")
+        type_qte = "Box"
+        if produit=="Twine Cones":
+            type_qte = colA.selectbox(f"Type pour {produit}", ["Box","Fardeau"], key=f"type_{produit}")
+        qte = colB.number_input(f"Quantité", min_value=0, step=1, key=f"qte_{produit}")
+        if produit=="Twine Cones" and type_qte=="Fardeau":
+            qte *= 6
         prix_vente = info["prix_vente"]
         prix_achat = info["prix_achat"]
         montant = qte * prix_vente
-        cout = qte * prix_achat
-        total_ventes += montant
-        total_cout += cout
-        vente_produits[produit] = {
-            "qte": qte,
-            "prix_vente": prix_vente,
-            "prix_achat": prix_achat,
-            "montant": montant,
-            "cout": cout
-        }
+        total_montant += montant
+        vente_produits[produit] = {"qte":qte,"prix_vente":prix_vente,"prix_achat":prix_achat,"montant":montant}
 
-    st.subheader("📊 Résultats")
-    st.write(f"💰 Total ventes : **{total_ventes} DA**")
-    st.write(f"💸 Total frais : **{total_frais} DA**")
-    st.write(f"🧾 Coût des produits : **{total_cout} DA**")
-
-    benefice = total_ventes - total_frais - total_cout
-    st.success(f"🟢 Bénéfice net : **{benefice} DA**")
+    st.subheader("📊 Résultat")
+    st.write(f"💰 Total ventes : **{total_montant} DA**")
+    benefice = total_montant - total_charges - sum(p["prix_achat"]*p["qte"] for p in vente_produits.values())
+    st.success(f"🟢 Bénéfice : **{benefice} DA**")
 
     if st.button("Enregistrer la commande"):
         vente = {
@@ -145,16 +135,15 @@ if page == "Commandes":
                 "chauffeur": prix_chauffeur,
                 "van": charge_van,
                 "autres": autres,
-                "total_frais": total_frais
+                "total_frais": total_charges
             },
             "produits": vente_produits,
-            "total_ventes": total_ventes,
-            "total_cout": total_cout,
+            "total_ventes": total_montant,
             "benefice": benefice
         }
         data["ventes"].append(vente)
         save_data(data)
-        st.success("✅ Commande enregistrée avec succès !")
+        st.success("Commande enregistrée ✔")
         st.experimental_rerun()
 
 # ------------------------------
@@ -162,6 +151,7 @@ if page == "Commandes":
 # ------------------------------
 if page == "Stock":
     st.title("📦 Stock des produits")
+    total_stock = 0
     for produit, info in data["stock"].items():
         st.markdown(f"### {produit}")
         col1, col2 = st.columns(2)
@@ -173,6 +163,8 @@ if page == "Stock":
         data["stock"][produit]["boites"] = boites
         data["stock"][produit]["prix_achat"] = prix_achat
         data["stock"][produit]["prix_vente"] = prix_vente
+        total_stock += boites
+    st.info(f"📌 Total stock actuel : **{total_stock} boîtes**")
     if st.button("Mettre à jour le stock"):
         save_data(data)
         st.success("Stock mis à jour ✔")
@@ -195,6 +187,7 @@ def generate_pdf_bytes(ventes):
             pdf.cell(0, 6, f"{prod}: Qte={info['qte']} | Achat={info['prix_achat']} | Vente={info['prix_vente']} | Montant={info['montant']}", ln=1)
         pdf.ln(2)
     return pdf.output(dest='S').encode('latin1')
+
 
 if page == "Historique":
     st.title("📜 Historique des ventes")
@@ -219,12 +212,39 @@ if page == "Historique":
                 df = pd.DataFrame(rows)
                 st.dataframe(df)
 
-                c1, c2 = st.columns(2)
-                if c1.button("Supprimer", key=f"hist_del_{idx}"):
+                c1, c2, c3 = st.columns([1,1,1])
+                
+                if c1.button("Modifier", key=f"edit_{idx}"):
+                    st.session_state["edit_idx"] = idx
+                    st.experimental_rerun()
+                if c2.button("Supprimer", key=f"del_{idx}"):
                     data["ventes"].pop(idx)
                     save_data(data)
                     st.success("Vente supprimée ✔")
                     st.experimental_rerun()
+
+                if st.session_state.get("edit_idx") == idx:
+                    st.info("Mode édition: change les quantités et clique sur Sauvegarder.")
+                    edited = {}
+                    for row in rows:
+                        k = row["Produit"]
+                        newq = st.number_input(f"Nouvelle quantité - {k}", min_value=0, value=int(row["Quantité"]), key=f"edit_q_{idx}_{k}")
+                        edited[k] = int(newq)
+                    if st.button("Sauvegarder modification", key=f"save_edit_{idx}"):
+                        vente_obj = data["ventes"][idx]
+                        for pname, newq in edited.items():
+                            if pname in vente_obj["produits"]:
+                                p = vente_obj["produits"][pname]
+                                p["qte"] = int(newq)
+                                p["montant"] = round(p["prix_vente"] * p["qte"],2)
+                                p["cout"] = round(p["prix_achat"] * p["qte"],2)
+                        vente_obj["total_ventes"] = round(sum(p["montant"] for p in vente_obj["produits"].values()),2)
+                        vente_obj["total_cout"] = round(sum(p["cout"] for p in vente_obj["produits"].values()),2)
+                        vente_obj["benefice"] = round(vente_obj["total_ventes"] - vente_obj.get("frais",{}).get("total_frais",0) - vente_obj["total_cout"],2)
+                        save_data(data)
+                        st.success("Modification sauvegardée ✔")
+                        st.session_state.pop("edit_idx", None)
+                        st.experimental_rerun()
 
         pdf_bytes = generate_pdf_bytes(data.get("ventes", []))
         st.download_button("📄 Télécharger l'historique (PDF)", pdf_bytes, file_name="historique_mini_cones.pdf", mime="application/pdf")
