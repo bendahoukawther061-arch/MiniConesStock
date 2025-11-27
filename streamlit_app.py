@@ -3,277 +3,246 @@ import json
 import os
 from datetime import datetime
 import pandas as pd
-from fpdf import FPDF
-import base64
 
-# ---------------------------
-# CONFIG
-# ---------------------------
-st.set_page_config(page_title="Mini Cones", page_icon="🍦")
+# ------------------------------
+# Configuration + thème
+# ------------------------------
 
-PASSWORD = "mehdi"
+st.set_page_config(
+    page_title="Mini Cones",
+    page_icon="🍦",
+    layout="wide"
+)
 
-if "auth" not in st.session_state:
-    st.session_state.auth = False
+# Arrière-plan rose pastel chocolat
+page_bg = """
+<style>
+    .stApp {
+        background: linear-gradient(135deg, #ffe6f2 0%, #fff8fd 40%, #f7e6d5 80%);
+    }
 
-if not st.session_state.auth:
-    st.title("🔒 Connexion")
-    pwd = st.text_input("Mot de passe", type="password")
-    if st.button("Valider"):
-        if pwd.lower() == PASSWORD:
-            st.session_state.auth = True
-            st.success("Connecté ✔")
-        else:
-            st.error("Mot de passe incorrect ❌")
-    st.stop()
+    .css-18e3th9, .css-1d391kg {
+        background: transparent !important;
+    }
 
-# ---------------------------
-# DATA FILE
-# ---------------------------
+    h1, h2, h3 {
+        color: #b56576 !important;
+        font-weight: 800 !important;
+    }
+
+    .stButton>button {
+        background-color: #b56576 !important;
+        color: white !important;
+        border-radius: 12px !important;
+        height: 3em;
+        font-size: 18px;
+        font-weight: bold;
+    }
+
+    .stDownloadButton>button {
+        background-color: #6d6875 !important;
+        color: white !important;
+        border-radius: 10px !important;
+    }
+
+</style>
+"""
+st.markdown(page_bg, unsafe_allow_html=True)
+
+# ------------------------------
+# Fichier stockage
+# ------------------------------
+
 DATA_FILE = "stock.json"
 
-DEFAULT_DATA = {
-    "stock": {
-        "Twine Cones": {"boites": 50, "prix_achat": 10, "prix_vente": 15},
-        "Pistache": {"boites": 60, "prix_achat": 12, "prix_vente": 18},
-        "Bueno": {"boites": 40, "prix_achat": 14, "prix_vente": 20},
-        "Au Lait": {"boites": 80, "prix_achat": 11, "prix_vente": 17},
-        "Crêpes": {"boites": 70, "prix_achat": 9, "prix_vente": 14}
-    },
-    "ventes": []
-}
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        return {
+            "stock": {
+                "Twine Cones": {"boites": 0, "prix_achat": 0, "prix_vente": 0},
+                "Cones Pistache": {"boites": 0, "prix_achat": 0, "prix_vente": 0},
+                "Bueno au Lait": {"boites": 0, "prix_achat": 0, "prix_vente": 0},
+                "Crêpes": {"boites": 0, "prix_achat": 0, "prix_vente": 0}
+            },
+            "ventes": []
+        }
+    with open(DATA_FILE, "r") as f:
+        return json.load(f)
 
-if not os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "w") as f:
-        json.dump(DEFAULT_DATA, f, indent=4)
-
-with open(DATA_FILE, "r") as f:
-    data = json.load(f)
-
-def save_data():
+def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
-# ---------------------------
-# BACKUP QUOTIDIEN
-# ---------------------------
-def backup_daily():
-    today = datetime.now().strftime("%Y-%m-%d")
-    backup_file = f"backup_{today}.json"
-    if not os.path.exists(backup_file):
-        with open(backup_file, "w") as f:
-            json.dump(data, f, indent=4)
+data = load_data()
 
-backup_daily()
+# ------------------------------
+# Sidebar
+# ------------------------------
 
-# ---------------------------
-# MENU
-# ---------------------------
-page = st.sidebar.selectbox("📌 Menu", ["Commande", "Stock", "Historique"])
+st.sidebar.image("logo.png", width=120)
+page = st.sidebar.radio("Navigation", ["Commandes", "Stock", "Historique"])
 
-# ---------------------------
-# PAGE 1 — COMMANDE
-# ---------------------------
-if page == "Commande":
+# ------------------------------
+# PAGE 1 — COMMANDES
+# ------------------------------
+
+if page == "Commandes":
     st.title("🧾 Nouvelle Commande")
 
+    # Numéro + date
     num = 1 if len(data["ventes"]) == 0 else data["ventes"][-1]["num"] + 1
     date = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    st.write(f"**Commande N° : {num}** — {date}")
+    st.write(f"**Commande N° {num} — {date}**")
 
-    client = st.text_input("Nom du client")
-    revendeur = st.text_input("Nom du revendeur")
-    prix_revendeur = st.number_input("Prix revendeur", min_value=0.0)
-    chauffeur = st.text_input("Nom du chauffeur")
-    prix_chauffeur = st.number_input("Prix chauffeur", min_value=0.0)
-    van = st.number_input("Prix Van", min_value=0.0)
-    autres_charges = st.number_input("Autres charges", min_value=0.0)
+    col1, col2 = st.columns(2)
 
-    total_charges = prix_revendeur + prix_chauffeur + van + autres_charges
-    st.info(f"Total charges = {total_charges} DA")
+    with col1:
+        client = st.text_input("Client")
+        revendeur = st.text_input("Revendeur")
+        prix_revendeur = st.number_input("Charge Revendeur (DA)", min_value=0.0)
 
-    st.subheader("Produits")
-    produits = data["stock"].keys()
+    with col2:
+        chauffeur = st.text_input("Chauffeur")
+        prix_chauffeur = st.number_input("Charge Chauffeur (DA)", min_value=0.0)
+
+    charge_van = st.number_input("Charge Van (DA)", min_value=0.0)
+    autres = st.number_input("Autres charges (DA)", min_value=0.0)
+
+    total_charges = prix_revendeur + prix_chauffeur + charge_van + autres
+    st.info(f"🔸 Total Charges : **{total_charges} DA**")
+
+    st.subheader("🧃 Produits")
+
+    total_montant = 0
     vente_produits = {}
-    total_vente = 0
-    benef_brut = 0
 
-    for p in produits:
-        st.markdown(f"### {p}")
-        qte = st.number_input(f"Quantité vendue ({p})", min_value=0, max_value=data["stock"][p]["boites"], key=f"q_{p}")
-        pv = st.number_input(f"Prix vente ({p})", min_value=0.0, value=float(data["stock"][p]["prix_vente"]), key=f"pv_{p}")
-        pa = data["stock"][p]["prix_achat"]
-        montant = qte * pv
-        marge = (pv - pa) * qte
-        vente_produits[p] = {"qte": qte, "prix_vente": pv, "prix_achat": pa, "montant": montant, "marge": marge}
-        total_vente += montant
-        benef_brut += marge
+    for produit, info in data["stock"].items():
+        st.markdown(f"### {produit}")
 
-    benef_net = benef_brut - total_charges
+        colA, colB, colC = st.columns(3)
 
-    st.subheader("Résumé")
-    st.write(f"💰 Montant total : {total_vente} DA")
-    st.write(f"📈 Bénéfice brut : {benef_brut} DA")
-    st.write(f"🟢 Bénéfice NET : {benef_net} DA")
+        # type de quantité pour Twine Cones
+        if produit == "Twine Cones":
+            type_qte = colA.selectbox(f"Type pour {produit}", ["Box", "Fardeau"])
+        else:
+            type_qte = "Box"
 
-    if st.button("💾 Enregistrer la commande"):
-        for p, info in vente_produits.items():
-            data["stock"][p]["boites"] -= info["qte"]
+        qte = colB.number_input(f"Quantité", min_value=0, step=1)
 
+        if produit == "Twine Cones" and type_qte == "Fardeau":
+            qte *= 6  # conversion
+
+        prix_vente = colC.number_input(
+            f"Prix Vente unité (DA)",
+            value=float(info["prix_vente"])
+        )
+
+        montant = qte * prix_vente
+        total_montant += montant
+
+        vente_produits[produit] = {
+            "qte": qte,
+            "prix_vente": prix_vente,
+            "prix_achat": info["prix_achat"],
+            "montant": montant
+        }
+
+    st.subheader("📊 Résultat")
+
+    st.write(f"💰 Total ventes : **{total_montant} DA**")
+    benefice = total_montant - total_charges
+    st.success(f"🟢 Bénéfice : **{benefice} DA**")
+
+    if st.button("Enregistrer la commande"):
         vente = {
             "num": num,
             "date": date,
             "client": client,
             "revendeur": revendeur,
-            "prix_revendeur": prix_revendeur,
             "chauffeur": chauffeur,
-            "prix_chauffeur": prix_chauffeur,
-            "van": van,
-            "autres_charges": autres_charges,
             "charges": total_charges,
             "produits": vente_produits,
-            "total_vente": total_vente,
-            "benef_brut": benef_brut,
-            "benef_net": benef_net
+            "total": total_montant,
+            "benefice": benefice
         }
 
         data["ventes"].append(vente)
-        save_data()
+        save_data(data)
         st.success("Commande enregistrée ✔")
         st.experimental_rerun()
 
-# ---------------------------
+# ------------------------------
 # PAGE 2 — STOCK
-# ---------------------------
+# ------------------------------
+
 elif page == "Stock":
-    st.title("📦 Stock des Produits")
+    st.title("📦 Gestion du Stock")
+
+    st.subheader("Stock actuel")
+
     for p, info in data["stock"].items():
-        st.write(f"**{p}** — {info['boites']} boîtes — PA: {info['prix_achat']} — PV: {info['prix_vente']}")
+        st.write(f"**{p}** : {info['boites']} box — Achat {info['prix_achat']} DA — Vente {info['prix_vente']} DA")
 
-    st.subheader("Modifier un produit")
+    st.markdown("---")
+
+    st.subheader("➕ Modifier / Ajouter quantité")
+
     prod = st.selectbox("Produit", list(data["stock"].keys()))
-    new_boites = st.number_input("Nouvelle quantité", min_value=0)
-    new_pa = st.number_input("Prix achat", min_value=0.0, value=float(data["stock"][prod]["prix_achat"]))
-    new_pv = st.number_input("Prix vente", min_value=0.0, value=float(data["stock"][prod]["prix_vente"]))
+    new_qte = st.number_input("Quantité à ajouter", min_value=0)
+    prixA = st.number_input("Prix achat (DA)", value=float(data["stock"][prod]["prix_achat"]))
+    prixV = st.number_input("Prix vente (DA)", value=float(data["stock"][prod]["prix_vente"]))
 
-    if st.button("Mettre à jour"):
-        data["stock"][prod]["boites"] = new_boites
-        data["stock"][prod]["prix_achat"] = new_pa
-        data["stock"][prod]["prix_vente"] = new_pv
-        save_data()
+    if st.button("Mettre à jour le stock"):
+        data["stock"][prod]["boites"] += new_qte
+        data["stock"][prod]["prix_achat"] = prixA
+        data["stock"][prod]["prix_vente"] = prixV
+        save_data(data)
         st.success("Stock mis à jour ✔")
         st.experimental_rerun()
 
-# ---------------------------
+# ------------------------------
 # PAGE 3 — HISTORIQUE
-# ---------------------------
+# ------------------------------
+
 elif page == "Historique":
-    st.title("📚 Historique des Commandes")
+    st.title("📜 Historique des Commandes")
 
     if len(data["ventes"]) == 0:
-        st.info("Aucune commande enregistrée.")
-        st.stop()
+        st.info("Aucune commande.")
+    else:
+        rows = []
 
-    df = pd.DataFrame([{
-        "N°": v["num"],
-        "Date": v["date"],
-        "Client": v["client"],
-        "Total": v["total_vente"],
-        "Bénéfice net": v["benef_net"]
-    } for v in data["ventes"]])
-
-    st.dataframe(df, use_container_width=True)
-
-    num_sel = st.selectbox("Sélectionner une commande", df["N°"])
-    vente = next(v for v in data["ventes"] if v["num"] == num_sel)
-
-    st.write("### Détails")
-    st.json(vente)
-
-    # SUPPRIMER
-    if st.button("❌ Supprimer cette commande"):
-        data["ventes"] = [v for v in data["ventes"] if v["num"] != num_sel]
-        save_data()
-        st.success("Suppression réussie ✔")
-        st.experimental_rerun()
-
-    # MODIFIER
-    if st.button("✏ Modifier cette commande"):
-        st.warning("Modifier la commande ci-dessous :")
-        client_new = st.text_input("Client", value=vente["client"])
-        revendeur_new = st.text_input("Revendeur", value=vente.get("revendeur",""))
-        prix_revendeur_new = st.number_input("Prix revendeur", value=vente.get("prix_revendeur",0))
-        chauffeur_new = st.text_input("Chauffeur", value=vente.get("chauffeur",""))
-        prix_chauffeur_new = st.number_input("Prix chauffeur", value=vente.get("prix_chauffeur",0))
-        van_new = st.number_input("Prix Van", value=vente.get("van",0))
-        autres_charges_new = st.number_input("Autres charges", value=vente.get("autres_charges",0))
-
-        st.subheader("Produits")
-        produits_modif = {}
-        total_vente_new = 0
-        benef_brut_new = 0
-        for p, info in vente["produits"].items():
-            qte_new = st.number_input(f"Quantité {p}", min_value=0, max_value=data["stock"][p]["boites"] + info["qte"], value=info["qte"])
-            pv_new = st.number_input(f"Prix vente {p}", min_value=0.0, value=info["prix_vente"])
-            pa = info["prix_achat"]
-            montant = qte_new * pv_new
-            marge = (pv_new - pa) * qte_new
-            produits_modif[p] = {"qte": qte_new, "prix_vente": pv_new, "prix_achat": pa, "montant": montant, "marge": marge}
-            total_vente_new += montant
-            benef_brut_new += marge
-
-        total_charges_new = prix_revendeur_new + prix_chauffeur_new + van_new + autres_charges_new
-        benef_net_new = benef_brut_new - total_charges_new
-
-        if st.button("💾 Enregistrer modifications"):
-            for p, info in vente["produits"].items():
-                delta = info["qte"] - produits_modif[p]["qte"]
-                data["stock"][p]["boites"] += delta
-            vente.update({
-                "client": client_new,
-                "revendeur": revendeur_new,
-                "prix_revendeur": prix_revendeur_new,
-                "chauffeur": chauffeur_new,
-                "prix_chauffeur": prix_chauffeur_new,
-                "van": van_new,
-                "autres_charges": autres_charges_new,
-                "charges": total_charges_new,
-                "produits": produits_modif,
-                "total_vente": total_vente_new,
-                "benef_brut": benef_brut_new,
-                "benef_net": benef_net_new
+        for v in data["ventes"]:
+            rows.append({
+                "Num": v["num"],
+                "Date": v["date"],
+                "Client": v["client"],
+                "Total": v["total"],
+                "Charges": v["charges"],
+                "Bénéfice": v["benefice"]
             })
-            save_data()
-            st.success("Commande modifiée ✔")
-            st.experimental_rerun()
 
-    # PDF tableau uniquement
-    if st.button("🖨 Télécharger tableau produits PDF"):
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        pdf.cell(200, 10, txt=f"Commande N° {vente['num']} - Produits", ln=True, align="C")
-        pdf.ln(5)
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(60, 10, txt="Produit", border=1)
-        pdf.cell(30, 10, txt="Qté", border=1)
-        pdf.cell(40, 10, txt="Prix Achat", border=1)
-        pdf.cell(40, 10, txt="Prix Vente", border=1)
-        pdf.cell(20, 10, txt="Montant", border=1)
-        pdf.ln()
-        pdf.set_font("Arial", "", 12)
-        for p, info in vente["produits"].items():
-            pdf.cell(60, 10, txt=p, border=1)
-            pdf.cell(30, 10, txt=str(info["qte"]), border=1)
-            pdf.cell(40, 10, txt=str(info["prix_achat"]), border=1)
-            pdf.cell(40, 10, txt=str(info["prix_vente"]), border=1)
-            pdf.cell(20, 10, txt=str(info["montant"]), border=1)
-            pdf.ln()
-        file_path = f"commande_{vente['num']}_tableau.pdf"
-        pdf.output(file_path)
-        with open(file_path, "rb") as f:
-            pdf_bytes = f.read()
-            b64 = base64.b64encode(pdf_bytes).decode()
-        st.markdown(f'<a download="{file_path}" href="data:application/pdf;base64,{b64}">📥 Télécharger PDF tableau produits</a>', unsafe_allow_html=True)
+        df = pd.DataFrame(rows)
+        st.dataframe(df)
 
+        st.download_button(
+            "📥 Télécharger tableau",
+            df.to_csv(index=False).encode("utf-8"),
+            "historique.csv",
+            "text/csv"
+        )
+
+        choix = st.selectbox("Sélectionner commande", df["Num"])
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("❌ Supprimer"):
+                data["ventes"] = [v for v in data["ventes"] if v["num"] != choix]
+                save_data(data)
+                st.success("Supprimé ✔")
+                st.experimental_rerun()
+
+        with col2:
+            st.warning("Modification sera ajoutée bientôt…")
