@@ -32,7 +32,7 @@ page_bg = """
     border-radius: 12px !important;
     height: 3em;
     font-size: 18px;
-    font-weight: bold;
+    font-weight: bold !important;
     transition: all 0.3s ease;
 }
 
