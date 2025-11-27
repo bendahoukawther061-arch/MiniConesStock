@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import json
 import os
 from datetime import datetime
@@ -11,7 +12,7 @@ from io import BytesIO
 st.set_page_config(page_title="Mini Cones", page_icon="🍦", layout="wide")
 
 # ------------------------------
-# Thème CSS clair
+# CSS
 # ------------------------------
 page_bg = """
 <style>
@@ -78,7 +79,6 @@ page = st.sidebar.radio("Navigation", ["Commandes", "Stock", "Historique"])
 # PAGE COMMANDES
 # ------------------------------
 if page == "Commandes":
-    st.image("logo.png", width=150)
     st.title("🧾 Nouvelle Commande")
     num = 1 if len(data["ventes"])==0 else data["ventes"][-1]["num"]+1
     date = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -93,6 +93,7 @@ if page == "Commandes":
     st.subheader("🧃 Produits")
     total_montant = 0
     vente_produits = {}
+
     for produit, info in data["stock"].items():
         st.markdown(f"### {produit}")
         qte = st.number_input(f"Quantité {produit}", min_value=0, step=1, key=f"qte_{produit}")
@@ -109,77 +110,79 @@ if page == "Commandes":
             "num": num,
             "date": date,
             "client": client,
+            "chauffeur": chauffeur,
             "produits": vente_produits,
             "total": total_montant
         }
         data["ventes"].append(vente)
         save_data(data)
-        st.success("Commande enregistrée !")
+        st.success("Commande enregistrée ✅")
         st.experimental_rerun()
 
 # ------------------------------
 # PAGE STOCK
 # ------------------------------
-if page == "Stock":
+elif page == "Stock":
     st.title("📦 Gestion du Stock")
     for produit, info in data["stock"].items():
-        colA, colB = st.columns(2)
-        with colA:
-            st.markdown(f"**{produit}**")
-            info["boites"] = st.number_input(f"Stock (boites) {produit}", min_value=0, value=info["boites"], key=f"stock_{produit}")
-        with colB:
-            info["prix_vente"] = st.number_input(f"Prix vente (DA) {produit}", min_value=0, value=info["prix_vente"], key=f"prix_{produit}")
-    if st.button("Enregistrer le stock"):
+        st.markdown(f"### {produit}")
+        col1, col2 = st.columns(2)
+        with col1:
+            data["stock"][produit]["boites"] = st.number_input("Boîtes", value=info["boites"], key=f"boites_{produit}")
+        with col2:
+            data["stock"][produit]["prix_vente"] = st.number_input("Prix Vente (DA)", value=info["prix_vente"], key=f"prix_vente_{produit}")
+    if st.button("Enregistrer Stock"):
         save_data(data)
-        st.success("Stock mis à jour !")
+        st.success("Stock mis à jour ✅")
 
 # ------------------------------
 # PAGE HISTORIQUE
 # ------------------------------
-if page == "Historique":
-    st.title("🕒 Historique des Ventes")
+elif page == "Historique":
+    st.title("📜 Historique des Ventes")
+    for idx, vente in enumerate(data["ventes"]):
+        st.markdown(f"**Commande N° {vente['num']} — {vente['date']} — Client : {vente['client']}**")
+        hist_data = []
+        for produit, info in vente["produits"].items():
+            hist_data.append({
+                "Produit": produit,
+                "Quantité": info["qte"],
+                "Prix Vente (DA)": info["prix_vente"],
+                "Montant (DA)": info["montant"]
+            })
+        df = pd.DataFrame(hist_data)
+        st.dataframe(df)
 
-    if len(data["ventes"]) == 0:
-        st.info("Aucune vente enregistrée.")
-    else:
-        for i, vente in enumerate(data["ventes"]):
-            st.subheader(f"Vente N° {vente['num']} — {vente['date']}")
-            st.write(f"Client: {vente['client']}")
-            df = pd.DataFrame(vente["produits"]).T
-            df["montant"] = df["montant"]
-            st.dataframe(df)
-
-            col1, col2 = st.columns(2)
-            if col1.button("Modifier", key=f"mod_{i}"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("Modifier", key=f"mod_{idx}"):
                 for produit, info in vente["produits"].items():
-                    vente["produits"][produit]["qte"] = st.number_input(f"{produit} quantité", value=info["qte"], key=f"mod_qte_{i}_{produit}")
+                    new_qte = st.number_input(f"Quantité {produit}", value=info["qte"], key=f"edit_{idx}_{produit}")
+                    vente["produits"][produit]["qte"] = new_qte
+                    vente["produits"][produit]["montant"] = new_qte * info["prix_vente"]
+                vente["total"] = sum([p["montant"] for p in vente["produits"].values()])
                 save_data(data)
-                st.success("Vente modifiée !")
+                st.success("Commande modifiée ✅")
                 st.experimental_rerun()
-            if col2.button("Supprimer", key=f"sup_{i}"):
-                data["ventes"].pop(i)
+        with col2:
+            if st.button("Supprimer", key=f"del_{idx}"):
+                data["ventes"].pop(idx)
                 save_data(data)
-                st.success("Vente supprimée !")
+                st.success("Commande supprimée ✅")
                 st.experimental_rerun()
-
-    # Export PDF
-    def export_pdf(ventes):
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 10, "Historique des ventes Mini Cones", ln=True, align="C")
-        pdf.ln(10)
-        for vente in ventes:
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 8, f"Vente N° {vente['num']} - {vente['date']}", ln=True)
-            pdf.set_font("Arial", "", 12)
-            for produit, info in vente["produits"].items():
-                pdf.cell(0, 6, f"{produit}: {info['qte']} x {info['prix_vente']} = {info['montant']} DA", ln=True)
-            pdf.cell(0, 6, f"Total: {vente['total']} DA", ln=True)
+        with col3:
+            # Export PDF
+            pdf_buffer = BytesIO()
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", 'B', 16)
+            pdf.cell(0, 10, f"Commande N° {vente['num']}", ln=True)
+            pdf.set_font("Arial", '', 12)
+            pdf.cell(0, 10, f"Client: {vente['client']}  Date: {vente['date']}", ln=True)
             pdf.ln(5)
-        pdf_bytes = pdf.output(dest='S').encode('latin1')
-        buffer = BytesIO(pdf_bytes)
-        return buffer
-
-    buffer = export_pdf(data["ventes"])
-    st.download_button("📄 Télécharger l'historique en PDF", data=buffer, file_name="historique.pdf", mime="application/pdf")
+            pdf.set_font("Arial", '', 12)
+            for produit, info in vente["produits"].items():
+                pdf.cell(0, 8, f"{produit}: {info['qte']} x {info['prix_vente']} DA = {info['montant']} DA", ln=True)
+            pdf.cell(0, 8, f"Total: {vente['total']} DA", ln=True)
+            pdf.output(pdf_buffer)
+            st.download_button("📄 Export PDF", pdf_buffer.getvalue(), file_name=f"commande_{vente['num']}.pdf", mime="application/pdf")
