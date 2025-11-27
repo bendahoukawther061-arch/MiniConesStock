@@ -2,8 +2,11 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-from datetime import datetime
+from datetime import datetime, date
 from fpdf import FPDF
+import schedule
+import time
+import threading
 
 # ------------------------------
 # Config Streamlit
@@ -40,13 +43,6 @@ h1,h2,h3,h4 {
     background-color: #8e4f63 !important;
     transform: scale(1.05);
 }
-.fade-in {
-    animation: fadein 1s;
-}
-@keyframes fadein {
-    from {opacity:0;}
-    to {opacity:1;}
-}
 </style>
 """
 st.markdown(page_bg, unsafe_allow_html=True)
@@ -63,7 +59,7 @@ def load_data():
                 "Twine Cones": {"boites": 0, "prix_achat": 0, "prix_vente": 200},
                 "Cones Pistache": {"boites": 0, "prix_achat": 0, "prix_vente": 250},
                 "Bueno au Lait": {"boites": 0, "prix_achat": 0, "prix_vente": 220},
-                "Crêpes": {"boites": 0, "prix_achat": 0, "prix_vente": 240}
+                "Crêpes": {"boites": 0, "prix_achat": 0, "prix_vente": 180}
             },
             "ventes": []
         }
@@ -108,8 +104,8 @@ if page == "Commandes":
     st.image("logo.png", width=150)
     st.title("🧾 Nouvelle Commande")
     num = 1 if len(data["ventes"])==0 else data["ventes"][-1]["num"]+1
-    date = datetime.now().strftime("%Y-%m-%d %H:%M")
-    st.write(f"**Commande N° {num} — {date}**")
+    date_now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    st.write(f"**Commande N° {num} — {date_now}**")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -150,19 +146,14 @@ if page == "Commandes":
 
     if st.button("Enregistrer la commande"):
         vente = {
-            "num": num,
-            "date": date,
-            "client": client,
-            "revendeur": revendeur,
-            "chauffeur": chauffeur,
-            "charges": total_charges,
-            "produits": vente_produits,
-            "total": total_montant,
-            "benefice": benefice
+            "num": num, "date": date_now, "client": client, "revendeur": revendeur, 
+            "chauffeur": chauffeur, "charges": total_charges, "produits": vente_produits, 
+            "total": total_montant, "benefice": benefice
         }
         data["ventes"].append(vente)
         save_data(data)
         st.success("Commande enregistrée ✔")
+        st.experimental_rerun()
 
 # ------------------------------
 # PAGE STOCK
@@ -185,6 +176,7 @@ elif page == "Stock":
         data["stock"][prod]["prix_vente"] = prixV
         save_data(data)
         st.success("Stock mis à jour ✔")
+        st.experimental_rerun()
 
 # ------------------------------
 # PAGE HISTORIQUE
@@ -192,25 +184,63 @@ elif page == "Stock":
 elif page == "Historique":
     st.image("logo.png", width=150)
     st.title("📜 Historique des Commandes")
-    if len(data["ventes"])==0:
+    
+    if len(data["ventes"]) == 0:
         st.info("Aucune commande.")
     else:
+        df = pd.DataFrame([{
+            "N° Commande": v["num"],
+            "Date": v["date"],
+            "Client": v["client"],
+            "Revendeur": v["revendeur"],
+            "Chauffeur": v["chauffeur"],
+            "Charges (DA)": v["charges"],
+            "Total ventes (DA)": v["total"],
+            "Bénéfice (DA)": v["benefice"]
+        } for v in data["ventes"]])
+        
+        st.subheader("📊 Tableau des commandes")
+        st.dataframe(df)
+
         # Générer PDF
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", size=12)
         pdf.cell(0, 10, "Historique des Commandes Mini Cones", ln=True, align="C")
         pdf.ln(10)
-
         for v in data["ventes"]:
             pdf.multi_cell(0, 8, f"Commande N° {v['num']} - {v['date']}")
-            pdf.multi_cell(0, 8, f"Client: {v['client']}, Total: {v['total']} DA, Charges: {v['charges']} DA, Bénéfice: {v['benefice']} DA")
+            pdf.multi_cell(0, 8, f"Client: {v['client']}, Revendeur: {v['revendeur']}, Chauffeur: {v['chauffeur']}")
+            pdf.multi_cell(0, 8, f"Total: {v['total']} DA, Charges: {v['charges']} DA, Bénéfice: {v['benefice']} DA")
             pdf.ln(5)
 
         pdf_bytes = pdf.output(dest='S').encode('latin1')
-        st.download_button(
-            "📥 Export PDF",
-            pdf_bytes,
-            file_name="historique.pdf",
-            mime="application/pdf"
-        )
+        st.download_button("📥 Export PDF", pdf_bytes, file_name="historique.pdf", mime="application/pdf")
+
+# ------------------------------
+# Fonction pour sauvegarde automatique à minuit
+# ------------------------------
+def save_daily_pdf():
+    today = date.today().strftime("%Y-%m-%d")
+    daily_orders = [v for v in data["ventes"] if v["date"].startswith(today)]
+    if daily_orders:
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        pdf.cell(0, 10, f"Commandes du {today}", ln=True, align="C")
+        pdf.ln(10)
+        for v in daily_orders:
+            pdf.multi_cell(0, 8, f"Commande N° {v['num']} - {v['date']}")
+            pdf.multi_cell(0, 8, f"Client: {v['client']}, Revendeur: {v['revendeur']}, Chauffeur: {v['chauffeur']}")
+            pdf.multi_cell(0, 8, f"Total: {v['total']} DA, Charges: {v['charges']} DA, Bénéfice: {v['benefice']} DA")
+            pdf.ln(5)
+        pdf.output(f"commandes_{today}.pdf")
+
+def schedule_daily_save():
+    schedule.every().day.at("00:00").do(save_daily_pdf)
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
+
+# Lancer le planificateur en thread séparé
+threading.Thread(target=schedule_daily_save, daemon=True).start()
