@@ -11,13 +11,13 @@ import base64
 # ---------------------------
 st.set_page_config(page_title="Mini Cones", page_icon="🍦")
 
-PASSWORD = "mehdi123"
+PASSWORD = "bendahou mehdi"
 
 if "auth" not in st.session_state:
     st.session_state.auth = False
 
 if not st.session_state.auth:
-    st.title("Mini Cones")
+    st.title("🔒 Connexion")
     pwd = st.text_input("Mot de passe", type="password")
     if st.button("Valider"):
         if pwd.lower() == PASSWORD:
@@ -55,6 +55,18 @@ def save_data():
         json.dump(data, f, indent=4)
 
 # ---------------------------
+# BACKUP QUOTIDIEN
+# ---------------------------
+def backup_daily():
+    today = datetime.now().strftime("%Y-%m-%d")
+    backup_file = f"backup_{today}.json"
+    if not os.path.exists(backup_file):
+        with open(backup_file, "w") as f:
+            json.dump(data, f, indent=4)
+
+backup_daily()
+
+# ---------------------------
 # MENU
 # ---------------------------
 page = st.sidebar.selectbox("📌 Menu", ["Commande", "Stock", "Historique"])
@@ -75,9 +87,10 @@ if page == "Commande":
     prix_revendeur = st.number_input("Prix revendeur", min_value=0.0)
     chauffeur = st.text_input("Nom du chauffeur")
     prix_chauffeur = st.number_input("Prix chauffeur", min_value=0.0)
+    van = st.number_input("Prix Van", min_value=0.0)
+    autres_charges = st.number_input("Autres charges", min_value=0.0)
 
-    charges = st.number_input("Autres charges", min_value=0.0)
-    total_charges = prix_revendeur + prix_chauffeur + charges
+    total_charges = prix_revendeur + prix_chauffeur + van + autres_charges
     st.info(f"Total charges = {total_charges} DA")
 
     st.subheader("Produits")
@@ -89,29 +102,20 @@ if page == "Commande":
     for p in produits:
         st.markdown(f"### {p}")
         qte = st.number_input(f"Quantité vendue ({p})", min_value=0, max_value=data["stock"][p]["boites"], key=f"q_{p}")
-        pa = data["stock"][p]["prix_achat"]
         pv = st.number_input(f"Prix vente ({p})", min_value=0.0, value=float(data["stock"][p]["prix_vente"]), key=f"pv_{p}")
-
+        pa = data["stock"][p]["prix_achat"]
         montant = qte * pv
         marge = (pv - pa) * qte
-
-        vente_produits[p] = {
-            "qte": qte,
-            "prix_vente": pv,
-            "prix_achat": pa,
-            "montant": montant,
-            "marge": marge
-        }
-
+        vente_produits[p] = {"qte": qte, "prix_vente": pv, "prix_achat": pa, "montant": montant, "marge": marge}
         total_vente += montant
         benef_brut += marge
 
     benef_net = benef_brut - total_charges
 
     st.subheader("Résumé")
-    st.write(f"💰 **Montant total : {total_vente} DA**")
-    st.write(f"📈 **Bénéfice brut : {benef_brut} DA**")
-    st.write(f"🟢 **Bénéfice NET : {benef_net} DA**")
+    st.write(f"💰 Montant total : {total_vente} DA")
+    st.write(f"📈 Bénéfice brut : {benef_brut} DA")
+    st.write(f"🟢 Bénéfice NET : {benef_net} DA")
 
     if st.button("💾 Enregistrer la commande"):
         for p, info in vente_produits.items():
@@ -122,7 +126,11 @@ if page == "Commande":
             "date": date,
             "client": client,
             "revendeur": revendeur,
+            "prix_revendeur": prix_revendeur,
             "chauffeur": chauffeur,
+            "prix_chauffeur": prix_chauffeur,
+            "van": van,
+            "autres_charges": autres_charges,
             "charges": total_charges,
             "produits": vente_produits,
             "total_vente": total_vente,
@@ -133,14 +141,13 @@ if page == "Commande":
         data["ventes"].append(vente)
         save_data()
         st.success("Commande enregistrée ✔")
-        st.rerun()
+        st.experimental_rerun()
 
 # ---------------------------
 # PAGE 2 — STOCK
 # ---------------------------
 elif page == "Stock":
     st.title("📦 Stock des Produits")
-
     for p, info in data["stock"].items():
         st.write(f"**{p}** — {info['boites']} boîtes — PA: {info['prix_achat']} — PV: {info['prix_vente']}")
 
@@ -156,7 +163,7 @@ elif page == "Stock":
         data["stock"][prod]["prix_vente"] = new_pv
         save_data()
         st.success("Stock mis à jour ✔")
-        st.rerun()
+        st.experimental_rerun()
 
 # ---------------------------
 # PAGE 3 — HISTORIQUE
@@ -178,46 +185,94 @@ elif page == "Historique":
 
     st.dataframe(df, use_container_width=True)
 
-    num = st.selectbox("Sélectionner une commande", df["N°"])
-    vente = next(v for v in data["ventes"] if v["num"] == num)
+    num_sel = st.selectbox("Sélectionner une commande", df["N°"])
+    vente = next(v for v in data["ventes"] if v["num"] == num_sel)
 
     st.write("### Détails")
     st.json(vente)
 
     # SUPPRIMER
     if st.button("❌ Supprimer cette commande"):
-        data["ventes"] = [v for v in data["ventes"] if v["num"] != num]
+        data["ventes"] = [v for v in data["ventes"] if v["num"] != num_sel]
         save_data()
         st.success("Suppression réussie ✔")
-        st.rerun()
+        st.experimental_rerun()
 
-    # IMPRIMER PDF
-    if st.button("🖨 Imprimer PDF"):
+    # MODIFIER
+    if st.button("✏ Modifier cette commande"):
+        st.warning("Modifier la commande ci-dessous :")
+        client_new = st.text_input("Client", value=vente["client"])
+        revendeur_new = st.text_input("Revendeur", value=vente.get("revendeur",""))
+        prix_revendeur_new = st.number_input("Prix revendeur", value=vente.get("prix_revendeur",0))
+        chauffeur_new = st.text_input("Chauffeur", value=vente.get("chauffeur",""))
+        prix_chauffeur_new = st.number_input("Prix chauffeur", value=vente.get("prix_chauffeur",0))
+        van_new = st.number_input("Prix Van", value=vente.get("van",0))
+        autres_charges_new = st.number_input("Autres charges", value=vente.get("autres_charges",0))
+
+        st.subheader("Produits")
+        produits_modif = {}
+        total_vente_new = 0
+        benef_brut_new = 0
+        for p, info in vente["produits"].items():
+            qte_new = st.number_input(f"Quantité {p}", min_value=0, max_value=data["stock"][p]["boites"] + info["qte"], value=info["qte"])
+            pv_new = st.number_input(f"Prix vente {p}", min_value=0.0, value=info["prix_vente"])
+            pa = info["prix_achat"]
+            montant = qte_new * pv_new
+            marge = (pv_new - pa) * qte_new
+            produits_modif[p] = {"qte": qte_new, "prix_vente": pv_new, "prix_achat": pa, "montant": montant, "marge": marge}
+            total_vente_new += montant
+            benef_brut_new += marge
+
+        total_charges_new = prix_revendeur_new + prix_chauffeur_new + van_new + autres_charges_new
+        benef_net_new = benef_brut_new - total_charges_new
+
+        if st.button("💾 Enregistrer modifications"):
+            for p, info in vente["produits"].items():
+                delta = info["qte"] - produits_modif[p]["qte"]
+                data["stock"][p]["boites"] += delta
+            vente.update({
+                "client": client_new,
+                "revendeur": revendeur_new,
+                "prix_revendeur": prix_revendeur_new,
+                "chauffeur": chauffeur_new,
+                "prix_chauffeur": prix_chauffeur_new,
+                "van": van_new,
+                "autres_charges": autres_charges_new,
+                "charges": total_charges_new,
+                "produits": produits_modif,
+                "total_vente": total_vente_new,
+                "benef_brut": benef_brut_new,
+                "benef_net": benef_net_new
+            })
+            save_data()
+            st.success("Commande modifiée ✔")
+            st.experimental_rerun()
+
+    # PDF tableau uniquement
+    if st.button("🖨 Télécharger tableau produits PDF"):
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", size=12)
-
-        pdf.cell(200, 10, txt=f"Commande N° {vente['num']}", ln=True, align="C")
-        pdf.cell(200, 10, txt=f"Date : {vente['date']}", ln=True)
-        pdf.cell(200, 10, txt=f"Client : {vente['client']}", ln=True)
+        pdf.cell(200, 10, txt=f"Commande N° {vente['num']} - Produits", ln=True, align="C")
         pdf.ln(5)
-
-        pdf.cell(200, 10, txt="Produits :", ln=True)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(60, 10, txt="Produit", border=1)
+        pdf.cell(30, 10, txt="Qté", border=1)
+        pdf.cell(40, 10, txt="Prix Achat", border=1)
+        pdf.cell(40, 10, txt="Prix Vente", border=1)
+        pdf.cell(20, 10, txt="Montant", border=1)
+        pdf.ln()
+        pdf.set_font("Arial", "", 12)
         for p, info in vente["produits"].items():
-            line = f"{p}: {info['qte']} boîtes | PV {info['prix_vente']} | PA {info['prix_achat']}"
-            pdf.cell(200, 10, txt=line, ln=True)
-
-        pdf.ln(5)
-        pdf.cell(200, 10, txt=f"Total vente : {vente['total_vente']} DA", ln=True)
-        pdf.cell(200, 10, txt=f"Bénéfice net : {vente['benef_net']} DA", ln=True)
-
-        file_path = f"commande_{vente['num']}.pdf"
+            pdf.cell(60, 10, txt=p, border=1)
+            pdf.cell(30, 10, txt=str(info["qte"]), border=1)
+            pdf.cell(40, 10, txt=str(info["prix_achat"]), border=1)
+            pdf.cell(40, 10, txt=str(info["prix_vente"]), border=1)
+            pdf.cell(20, 10, txt=str(info["montant"]), border=1)
+            pdf.ln()
+        file_path = f"commande_{vente['num']}_tableau.pdf"
         pdf.output(file_path)
-
         with open(file_path, "rb") as f:
             pdf_bytes = f.read()
             b64 = base64.b64encode(pdf_bytes).decode()
-
-        st.markdown(f'<a download="{file_path}" href="data:application/pdf;base64,{b64}">📥 Télécharger PDF</a>', unsafe_allow_html=True)
-
-
+        st.markdown(f'<a download="{file_path}" href="data:application/pdf;base64,{b64}">📥 Télécharger PDF tableau produits</a>', unsafe_allow_html=True)
